@@ -19,8 +19,12 @@ final class _$EspService extends EspService {
 
   @override
   Future<Response<dynamic>> getWaterDistance() {
-    final Uri $url = Uri.parse('api/mqtt/messages');
-    final Request $request = Request('GET', $url, client.baseUrl);
+    final Uri $url = Uri.parse('/api/mqtt/messages');
+    final Request $request = Request(
+      'GET',
+      $url,
+      client.baseUrl,
+    );
     return client.send<dynamic, dynamic>($request);
   }
 }
