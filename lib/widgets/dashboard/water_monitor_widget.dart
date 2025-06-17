@@ -3,28 +3,41 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'package:smart_farming/models/esp_water_data.dart';
 import '../../models/pool_model.dart';
 
 class WaterMonitorWidget extends StatelessWidget {
   final double waterLevel;
   final Pool pool;
+  final ESPWaterData? latestWaterData;
+  final bool isLoading;
 
   const WaterMonitorWidget({
     super.key,
     required this.waterLevel,
     required this.pool,
+    this.latestWaterData,
+    this.isLoading = false,
   });
 
   // Fungsi untuk menentukan warna progress bar berdasarkan level air
   Color _getWaterLevelColor() {
-    final currentDepthCm = (waterLevel / 100) * pool.depth;
-    if (currentDepthCm < 30) return Colors.orange;
-    if (currentDepthCm > pool.normalLevel) return Colors.red;
+    if (pool.currentDepth < 30) return Colors.orange;
+    if (pool.currentDepth > pool.normalLevel) return Colors.red;
     return Colors.blue;
   }
 
   @override
   Widget build(BuildContext context) {
+    // Sisa ruang adalah jarak dari sensor ke permukaan air (dalam cm)
+    final remainingSpace =
+        latestWaterData?.distanceToWater ?? (pool.depth - pool.currentDepth);
+
+    // Waktu update terakhir (atau '-' jika tidak ada data)
+    final lastUpdateTime = latestWaterData != null
+        ? _formatTimestamp(latestWaterData!.timestamp)
+        : '-';
+
     return Card(
       elevation: 2.0,
       clipBehavior: Clip.antiAlias,
@@ -44,13 +57,26 @@ class WaterMonitorWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Monitor Ketinggian Air',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1F2937),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Monitor Ketinggian Air',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+                // Loading indicator
+                if (isLoading)
+                  Container(
+                    width: 16,
+                    height: 16,
+                    margin: const EdgeInsets.only(right: 8),
+                    child: const CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
             ),
             const SizedBox(height: 24),
             Row(
@@ -124,6 +150,8 @@ class WaterMonitorWidget extends StatelessWidget {
                       _buildDetailInfo(
                         title: 'Ketinggian Saat Ini',
                         value: '${pool.currentDepth.toStringAsFixed(1)} cm',
+                        subtitle:
+                            'Kedalaman - Sisa Ruang', // Penjelasan formula
                         icon: Icons.waves,
                         color: _getWaterLevelColor(),
                       ),
@@ -131,14 +159,15 @@ class WaterMonitorWidget extends StatelessWidget {
                       _buildDetailInfo(
                         title: 'Kedalaman Total',
                         value: '${pool.depth} cm',
+                        subtitle: 'Input oleh user', // CATATAN TAMBAHAN
                         icon: Icons.straighten,
                         color: Colors.grey,
                       ),
                       const Divider(height: 24),
                       _buildDetailInfo(
                         title: 'Sisa Ruang',
-                        value:
-                            '${(pool.depth - pool.currentDepth).toStringAsFixed(1)} cm',
+                        value: '${remainingSpace.toStringAsFixed(1)} cm',
+                        subtitle: 'Jarak sensor ke permukaan air', // Penjelasan
                         icon: Icons.arrow_downward,
                         color: Colors.grey,
                       ),
@@ -146,6 +175,15 @@ class WaterMonitorWidget extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 16),
+            // Last update time
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'Update terakhir: $lastUpdateTime',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
             ),
             const SizedBox(height: 16),
             // Indikator Batas Aman dan Minimum
@@ -199,10 +237,16 @@ class WaterMonitorWidget extends StatelessWidget {
     );
   }
 
+  // Format timestamp to readable string
+  String _formatTimestamp(DateTime timestamp) {
+    return "${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')} ${timestamp.day}/${timestamp.month}/${timestamp.year}";
+  }
+
   // Widget helper untuk membuat baris informasi detail
   Widget _buildDetailInfo({
     required String title,
     required String value,
+    String? subtitle,
     required IconData icon,
     required Color color,
   }) {
@@ -226,6 +270,15 @@ class WaterMonitorWidget extends StatelessWidget {
                 fontSize: 16,
               ),
             ),
+            if (subtitle != null)
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 10,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
           ],
         ),
       ],

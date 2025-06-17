@@ -32,14 +32,14 @@ class PoolProvider with ChangeNotifier {
       currentDepth: 130,
     ),
   };
-  
+
   String _selectedPoolKey = 'aquarium';
   ValveStatus _valveStatus = ValveStatus.auto;
   DrainStatus _drainStatus = DrainStatus.closed;
   bool _isConnected = true;
   Timer? _waterLevelTimer;
   final WaterControlService _controlService = WaterControlService();
-  
+
   // Getters
   Map<String, Pool> get poolSettings => _poolSettings;
   String get selectedPoolKey => _selectedPoolKey;
@@ -47,37 +47,40 @@ class PoolProvider with ChangeNotifier {
   ValveStatus get valveStatus => _valveStatus;
   DrainStatus get drainStatus => _drainStatus;
   bool get isConnected => _isConnected;
-  
+
   // Methods
   void selectPool(String poolKey) {
     _selectedPoolKey = poolKey;
     notifyListeners();
   }
-  
+
   void updatePoolSettings(Pool updatedPool) {
     _poolSettings[_selectedPoolKey] = updatedPool;
     notifyListeners();
   }
-  
+
   void startWaterLevelSimulation() {
     _waterLevelTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       // Simulate water level changes
       final pool = currentPool;
       final randomChange = (Random().nextDouble() - 0.5) * 2;
-      pool.currentDepth = (pool.currentDepth + randomChange).clamp(0, pool.depth);
-      
+      pool.currentDepth = (pool.currentDepth + randomChange).clamp(
+        0,
+        pool.depth,
+      );
+
       // Auto control logic
       if (_valveStatus == ValveStatus.auto) {
         _checkWaterLevelAndControl();
       }
-      
+
       notifyListeners();
     });
   }
-  
+
   void _checkWaterLevelAndControl() {
     final pool = currentPool;
-    
+
     if (pool.isLevelTooLow) {
       _valveStatus = ValveStatus.open;
       _drainStatus = DrainStatus.closed;
@@ -89,17 +92,17 @@ class PoolProvider with ChangeNotifier {
       _drainStatus = DrainStatus.closed;
     }
   }
-  
+
   void setValveStatus(ValveStatus status) {
     _valveStatus = status;
     notifyListeners();
   }
-  
+
   void setDrainStatus(DrainStatus status) {
     _drainStatus = status;
     notifyListeners();
   }
-  
+
   @override
   void dispose() {
     _waterLevelTimer?.cancel();
