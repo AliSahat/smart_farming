@@ -36,22 +36,8 @@ class HistoryItem {
       poolName: json['poolName'],
       event: json['event'],
       eventType: json['eventType'],
-      waterLevel: json['waterLevel'].toDouble(),
+      waterLevel: json['waterLevel'],
       details: json['details'],
     );
   }
-
-  @override
-  String toString() {
-    return 'HistoryItem(id: $id, event: $event, poolName: $poolName)';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is HistoryItem && other.id == id;
-  }
-
-  @override
-  int get hashCode => id.hashCode;
 }

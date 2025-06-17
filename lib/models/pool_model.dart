@@ -1,10 +1,12 @@
 // lib/models/pool_model.dart
+import 'dart:core';
+
 class Pool {
-  String name;
-  double maxLevel; // Percentage
-  double minLevel; // Percentage
-  double normalLevel; // in cm
-  double depth; // in cm
+  final String name;
+  final double maxLevel; // Percentage
+  final double minLevel; // Percentage
+  final double normalLevel; // in cm
+  final double depth; // in cm
   double currentDepth; // in cm
 
   Pool({
@@ -15,6 +17,14 @@ class Pool {
     required this.depth,
     required this.currentDepth,
   });
+
+  double get waterLevelPercent => (currentDepth / depth) * 100;
+  
+  bool get isLevelTooLow => waterLevelPercent < minLevel;
+  bool get isLevelTooHigh => waterLevelPercent > maxLevel;
+  bool get isLevelNormal => !isLevelTooLow && !isLevelTooHigh;
+  
+  double get remainingSpace => depth - currentDepth;
 
   // Helper method to create a copy with updated values
   Pool copyWith({

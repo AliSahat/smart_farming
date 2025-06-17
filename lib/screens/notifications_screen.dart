@@ -2,19 +2,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart'; // Add this import
 import '../models/notification_model.dart';
+import '../providers/notification_provider.dart'; // Add this import
 import '../widgets/notifications/notification_item_widget.dart';
 import '../widgets/notifications/notification_filter_widget.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  final List<NotificationItem> notifications;
-  final Function(List<NotificationItem>) onNotificationsUpdated;
-
-  const NotificationsScreen({
-    super.key,
-    required this.notifications,
-    required this.onNotificationsUpdated,
-  });
+  // Remove required parameters
+  const NotificationsScreen({super.key});
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -24,8 +20,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _selectedFilter = 'semua';
   bool _showUnreadOnly = false;
 
-  List<NotificationItem> get _filteredNotifications {
-    List<NotificationItem> filtered = List.from(widget.notifications);
+  List<NotificationItem> _getFilteredNotifications(
+    List<NotificationItem> notifications,
+  ) {
+    List<NotificationItem> filtered = List.from(notifications);
 
     if (_showUnreadOnly) {
       filtered = filtered.where((item) => !item.isRead).toList();
@@ -40,142 +38,157 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return filtered;
   }
 
-  int get _unreadCount {
-    return widget.notifications.where((item) => !item.isRead).length;
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: Row(
-          children: [
-            const Text(
-              'Notifikasi',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1F2937),
-              ),
-            ),
-            if (_unreadCount > 0) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$_unreadCount',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+    // Use Consumer to access the NotificationProvider
+    return Consumer<NotificationProvider>(
+      builder: (context, notificationProvider, child) {
+        final notifications = notificationProvider.notifications;
+        final filteredNotifications = _getFilteredNotifications(notifications);
+        final unreadCount = notifications.where((item) => !item.isRead).length;
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8FAFC),
+          appBar: AppBar(
+            title: Row(
+              children: [
+                const Text(
+                  'Notifikasi',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1F2937),
                   ),
                 ),
+                if (unreadCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$unreadCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            backgroundColor: Colors.white,
+            elevation: 1,
+            automaticallyImplyLeading: false,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: () {
+                  setState(() {});
+                },
+              ),
+              if (unreadCount > 0)
+                TextButton(
+                  onPressed: () => _markAllAsRead(notificationProvider),
+                  child: const Text('Tandai Semua'),
+                ),
+            ],
+          ),
+          body: Column(
+            children: [
+              NotificationFilterWidget(
+                selectedFilter: _selectedFilter,
+                showUnreadOnly: _showUnreadOnly,
+                onFilterChanged: (filter) {
+                  setState(() {
+                    _selectedFilter = filter;
+                  });
+                },
+                onUnreadToggle: (value) {
+                  setState(() {
+                    _showUnreadOnly = value;
+                  });
+                },
+                onClearAll: () => _clearAllNotifications(notificationProvider),
+              ),
+
+              // Statistics
+              Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatItem(
+                      'Total',
+                      notifications.length.toString(),
+                      Icons.notifications,
+                      Colors.blue,
+                    ),
+                    Container(height: 40, width: 1, color: Colors.grey[300]),
+                    _buildStatItem(
+                      'Belum Dibaca',
+                      unreadCount.toString(),
+                      Icons.mark_email_unread,
+                      Colors.red,
+                    ),
+                    Container(height: 40, width: 1, color: Colors.grey[300]),
+                    _buildStatItem(
+                      'Peringatan',
+                      notifications
+                          .where(
+                            (n) => n.type == 'warning' || n.type == 'error',
+                          )
+                          .length
+                          .toString(),
+                      Icons.warning,
+                      Colors.orange,
+                    ),
+                  ],
+                ),
+              ),
+
+              Expanded(
+                child: filteredNotifications.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: filteredNotifications.length,
+                        itemBuilder: (context, index) {
+                          return NotificationItemWidget(
+                            notification: filteredNotifications[index],
+                            onTap: () => _markAsRead(
+                              notificationProvider,
+                              filteredNotifications[index],
+                            ),
+                            onDismiss: () => _dismissNotification(
+                              notificationProvider,
+                              filteredNotifications[index],
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
-          ],
-        ),
-        backgroundColor: Colors.white,
-        elevation: 1,
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              setState(() {});
-            },
           ),
-          if (_unreadCount > 0)
-            TextButton(
-              onPressed: _markAllAsRead,
-              child: const Text('Tandai Semua'),
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          NotificationFilterWidget(
-            selectedFilter: _selectedFilter,
-            showUnreadOnly: _showUnreadOnly,
-            onFilterChanged: (filter) {
-              setState(() {
-                _selectedFilter = filter;
-              });
-            },
-            onUnreadToggle: (value) {
-              setState(() {
-                _showUnreadOnly = value;
-              });
-            },
-            onClearAll: _clearAllNotifications,
-          ),
-
-          // Statistics
-          Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatItem(
-                  'Total',
-                  widget.notifications.length.toString(),
-                  Icons.notifications,
-                  Colors.blue,
-                ),
-                Container(height: 40, width: 1, color: Colors.grey[300]),
-                _buildStatItem(
-                  'Belum Dibaca',
-                  _unreadCount.toString(),
-                  Icons.mark_email_unread,
-                  Colors.red,
-                ),
-                Container(height: 40, width: 1, color: Colors.grey[300]),
-                _buildStatItem(
-                  'Peringatan',
-                  widget.notifications
-                      .where((n) => n.type == 'warning' || n.type == 'error')
-                      .length
-                      .toString(),
-                  Icons.warning,
-                  Colors.orange,
-                ),
-              ],
-            ),
-          ),
-
-          Expanded(
-            child: _filteredNotifications.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _filteredNotifications.length,
-                    itemBuilder: (context, index) {
-                      return NotificationItemWidget(
-                        notification: _filteredNotifications[index],
-                        onTap: () => _markAsRead(_filteredNotifications[index]),
-                        onDismiss: () =>
-                            _dismissNotification(_filteredNotifications[index]),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -227,37 +240,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  void _markAsRead(NotificationItem notification) {
-    final updatedNotifications = widget.notifications.map((n) {
-      if (n.id == notification.id) {
-        return NotificationItem(
-          id: n.id,
-          message: n.message,
-          type: n.type,
-          time: n.time,
-          isRead: true,
-          poolName: n.poolName,
-        );
-      }
-      return n;
-    }).toList();
-
-    widget.onNotificationsUpdated(updatedNotifications);
+  void _markAsRead(
+    NotificationProvider provider,
+    NotificationItem notification,
+  ) {
+    provider.markAsRead(notification.id);
   }
 
-  void _markAllAsRead() {
-    final updatedNotifications = widget.notifications.map((n) {
-      return NotificationItem(
-        id: n.id,
-        message: n.message,
-        type: n.type,
-        time: n.time,
-        isRead: true,
-        poolName: n.poolName,
-      );
-    }).toList();
-
-    widget.onNotificationsUpdated(updatedNotifications);
+  void _markAllAsRead(NotificationProvider provider) {
+    provider.markAllAsRead();
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -267,12 +258,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  void _dismissNotification(NotificationItem notification) {
-    final updatedNotifications = widget.notifications
-        .where((n) => n.id != notification.id)
-        .toList();
+  void _dismissNotification(
+    NotificationProvider provider,
+    NotificationItem notification,
+  ) {
+    // Keep a copy for potential restore
+    final removedNotification = notification;
 
-    widget.onNotificationsUpdated(updatedNotifications);
+    // Remove the notification
+    provider.removeNotification(notification.id);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -283,17 +277,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           textColor: Colors.white,
           onPressed: () {
             // Restore notification
-            final restoredNotifications = List<NotificationItem>.from(
-              widget.notifications,
-            );
-            widget.onNotificationsUpdated(restoredNotifications);
+            provider.addNotification(removedNotification);
           },
         ),
       ),
     );
   }
 
-  void _clearAllNotifications() {
+  void _clearAllNotifications(NotificationProvider provider) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -308,7 +299,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           TextButton(
             onPressed: () {
-              widget.onNotificationsUpdated([]);
+              provider.clearAll();
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
