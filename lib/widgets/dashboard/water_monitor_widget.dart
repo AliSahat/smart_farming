@@ -12,7 +12,6 @@ import '../../models/pool_model.dart';
 /// - Level air dalam bentuk circular progress indicator
 /// - Status kondisi air (Normal/Rendah/Berlebih)
 /// - Informasi detail ketinggian, kedalaman, dan sisa ruang
-/// - Waktu update terakhir dari sensor
 /// - Indikator batas aman dan minimum
 class WaterMonitorWidget extends StatelessWidget {
   /// Level air dalam persen (0-100)
@@ -78,10 +77,6 @@ class WaterMonitorWidget extends StatelessWidget {
     final remainingSpace =
         latestWaterData?.distanceToWater ?? (pool.depth - pool.currentDepth);
 
-    final lastUpdateTime = latestWaterData != null
-        ? _formatTimestamp(latestWaterData!.timestamp)
-        : 'Belum ada data sensor';
-
     return Card(
       elevation: 6.0,
       clipBehavior: Clip.antiAlias,
@@ -108,8 +103,8 @@ class WaterMonitorWidget extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // Status indicators dan last update dalam satu row
-            _buildBottomSection(lastUpdateTime),
+            // Status indicators saja
+            _buildStatusIndicatorsCompact(),
           ],
         ),
       ),
@@ -583,115 +578,6 @@ class WaterMonitorWidget extends StatelessWidget {
     );
   }
 
-  /// Section bawah yang menggabungkan status indicators dan last update
-  Widget _buildBottomSection(String lastUpdateTime) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 500) {
-          // Layout vertikal untuk layar kecil
-          return Column(
-            children: [
-              _buildLastUpdateSection(lastUpdateTime),
-              const SizedBox(height: 12),
-              _buildStatusIndicatorsCompact(),
-            ],
-          );
-        } else {
-          // Layout horizontal untuk layar lebar
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(flex: 2, child: _buildLastUpdateSection(lastUpdateTime)),
-              const SizedBox(width: 16),
-              Expanded(flex: 3, child: _buildStatusIndicatorsCompact()),
-            ],
-          );
-        }
-      },
-    );
-  }
-
-  /// Section update terakhir yang lebih compact
-  Widget _buildLastUpdateSection(String lastUpdateTime) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.access_time_rounded,
-              size: 18,
-              color: Colors.blue.shade600,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Update Terakhir',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  lastUpdateTime,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(
-              color: latestWaterData != null
-                  ? Colors.green.shade50
-                  : Colors.red.shade50,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  latestWaterData != null ? Icons.wifi : Icons.wifi_off,
-                  size: 10,
-                  color: latestWaterData != null ? Colors.green : Colors.red,
-                ),
-                const SizedBox(width: 3),
-                Text(
-                  latestWaterData != null ? 'Online' : 'Offline',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: latestWaterData != null ? Colors.green : Colors.red,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Status indicators yang lebih compact
   Widget _buildStatusIndicatorsCompact() {
     return Container(
@@ -763,12 +649,5 @@ class WaterMonitorWidget extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  /// Format timestamp menjadi string yang mudah dibaca
-  String _formatTimestamp(DateTime timestamp) {
-    return "${timestamp.hour.toString().padLeft(2, '0')}:"
-        "${timestamp.minute.toString().padLeft(2, '0')} "
-        "${timestamp.day}/${timestamp.month}/${timestamp.year}";
   }
 }

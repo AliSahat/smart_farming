@@ -8,6 +8,7 @@ import 'package:smart_farming/utils/logger.dart';
 import 'theme/app_theme.dart';
 import 'providers/pool_provider.dart';
 import 'providers/notification_provider.dart';
+import 'models/notification_model.dart'; // Tambah import ini
 import 'screens/dashboard_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/notifications_screen.dart';
@@ -22,7 +23,7 @@ void main() async {
     final dbHelper = DatabaseHelper();
     final db = await dbHelper.database;
     Logger.i('✅ Database initialized successfully');
-    Logger.i('Database path: ${db.path}'); // <-- Ini akan print path database
+    Logger.i('Database path: ${db.path}');
 
     // Print path yang lebih jelas
     print('=== DATABASE LOCATION ===');
@@ -47,43 +48,40 @@ void main() async {
   );
 }
 
-class SmartFarmingApp extends StatelessWidget {
+class SmartFarmingApp extends StatefulWidget {
   const SmartFarmingApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Smart Farming',
-      theme: lightThemeData,
-      home: const MainScreen(),
-    );
-  }
+  _SmartFarmingAppState createState() => _SmartFarmingAppState();
 }
 
-class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
-
-  @override
-  _MainScreenState createState() => _MainScreenState();
-}
-
-class _MainScreenState extends State<MainScreen> {
+class _SmartFarmingAppState extends State<SmartFarmingApp> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const NotificationsScreen(),
-    const HistoryScreen(),
-    const SettingsScreen(),
-  ];
+  late List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
-    // Initialize data
+    _screens = [
+      DashboardScreen(onNotificationAdded: _onNotificationAdded),
+      const NotificationsScreen(),
+      const HistoryScreen(),
+      const SettingsScreen(),
+    ];
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeApp();
     });
+  }
+
+  void _onNotificationAdded(NotificationItem notification) {
+    final notificationProvider = Provider.of<NotificationProvider>(
+      context,
+      listen: false,
+    );
+    notificationProvider.addNotification(notification);
+    debugPrint('Notification added from dashboard: ${notification.message}');
   }
 
   Future<void> _initializeApp() async {
@@ -110,27 +108,34 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Notifikasi',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Histori'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Pengaturan',
-          ),
-        ],
+    return MaterialApp(
+      title: 'Smart Farming',
+      theme: lightThemeData,
+      home: Scaffold(
+        body: _screens[_currentIndex],
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+          type: BottomNavigationBarType.fixed,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard),
+              label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.notifications),
+              label: 'Notifikasi',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.history),
+              label: 'Histori',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings),
+              label: 'Pengaturan',
+            ),
+          ],
+        ),
       ),
     );
   }

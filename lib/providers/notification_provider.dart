@@ -11,11 +11,21 @@ class NotificationProvider with ChangeNotifier {
   int get unreadCount => _notifications.where((n) => !n.isRead).length;
 
   void addNotification(NotificationItem notification) {
-    _notifications.insert(0, notification);
+    _notifications.insert(0, notification); // Insert di awal list
+
+    // Batasi jumlah notifikasi (maksimal 100)
+    if (_notifications.length > 100) {
+      _notifications.removeRange(100, _notifications.length);
+    }
+
     notifyListeners();
+
+    // Debug log
+    debugPrint('Notification added: ${notification.message}');
+    debugPrint('Total notifications: ${_notifications.length}');
   }
 
-  void markAsRead(int id) {
+  void markAsRead(String id) {
     final index = _notifications.indexWhere((n) => n.id == id);
     if (index != -1) {
       _notifications[index] = _notifications[index].copyWith(isRead: true);
@@ -30,7 +40,7 @@ class NotificationProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void removeNotification(int id) {
+  void removeNotification(String id) {
     _notifications.removeWhere((notification) => notification.id == id);
     notifyListeners();
   }
@@ -43,31 +53,33 @@ class NotificationProvider with ChangeNotifier {
   void addTestNotifications() {
     final testNotifications = [
       NotificationItem(
-        id: DateTime.now().millisecondsSinceEpoch,
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: 'Peringatan Sistem',
         message: 'Level air kolam ikan terlalu rendah',
         type: 'warning',
-        time: '10:30 18/06/2025',
+        timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
         poolName: 'Kolam Ikan',
       ),
       NotificationItem(
-        id: DateTime.now().millisecondsSinceEpoch + 1,
+        id: (DateTime.now().millisecondsSinceEpoch + 1).toString(),
+        title: 'Status Normal',
         message: 'Sistem berhasil terhubung ke sensor',
         type: 'success',
-        time: '10:25 18/06/2025',
-        isRead: true,
+        timestamp: DateTime.now().subtract(const Duration(minutes: 10)),
+        poolName: 'Kolam Ikan',
       ),
       NotificationItem(
-        id: DateTime.now().millisecondsSinceEpoch + 2,
-        message: 'Kran air otomatis dibuka',
+        id: (DateTime.now().millisecondsSinceEpoch + 2).toString(),
+        title: 'Informasi Sistem',
+        message: 'Pemeliharaan rutin sistem dimulai',
         type: 'info',
-        time: '10:20 18/06/2025',
-        poolName: 'Aquarium',
+        timestamp: DateTime.now().subtract(const Duration(hours: 1)),
+        poolName: 'Kolam Udang',
       ),
     ];
 
-    for (var notification in testNotifications.reversed) {
-      _notifications.insert(0, notification);
+    for (final notification in testNotifications) {
+      addNotification(notification);
     }
-    notifyListeners();
   }
 }
