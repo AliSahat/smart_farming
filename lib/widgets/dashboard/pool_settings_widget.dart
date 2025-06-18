@@ -69,15 +69,68 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
 
   void _saveSettings() {
     try {
+      // Validasi input terlebih dahulu
+      final name = _nameController.text.trim();
+      final depth = double.tryParse(_depthController.text);
+      final normalLevel = double.tryParse(_normalLevelController.text);
+      final maxLevel = double.tryParse(_maxLevelController.text);
+      final minLevel = double.tryParse(_minLevelController.text);
+
+      // Validasi nama
+      if (name.isEmpty) {
+        _showErrorSnackBar('Nama kolam/wadah tidak boleh kosong');
+        return;
+      }
+
+      // Validasi kedalaman
+      if (depth == null || depth <= 0) {
+        _showErrorSnackBar('Kedalaman harus berupa angka positif');
+        return;
+      }
+
+      // Validasi level normal
+      if (normalLevel == null || normalLevel <= 0) {
+        _showErrorSnackBar('Level normal harus berupa angka positif');
+        return;
+      }
+
+      // Validasi level maksimum
+      if (maxLevel == null || maxLevel <= 0 || maxLevel > 100) {
+        _showErrorSnackBar('Level maksimum harus antara 1-100%');
+        return;
+      }
+
+      // Validasi level minimum
+      if (minLevel == null || minLevel <= 0 || minLevel > 100) {
+        _showErrorSnackBar('Level minimum harus antara 1-100%');
+        return;
+      }
+
+      // Validasi relasi min < max
+      if (minLevel >= maxLevel) {
+        _showErrorSnackBar(
+          'Level minimum harus lebih kecil dari level maksimum',
+        );
+        return;
+      }
+
+      // Validasi level normal tidak melebihi kedalaman fisik
+      if (normalLevel > depth) {
+        _showErrorSnackBar('Level normal tidak boleh melebihi kedalaman total');
+        return;
+      }
+
+      // Hitung current depth yang tepat berdasarkan persentase water level saat ini
+      // dan kedalaman baru yang diinput
+      final newCurrentDepth = (widget.waterLevelPercent / 100) * depth;
+
       final newPool = Pool(
-        name: _nameController.text,
-        depth: double.parse(_depthController.text),
-        normalLevel: double.parse(_normalLevelController.text),
-        maxLevel: double.parse(_maxLevelController.text),
-        minLevel: double.parse(_minLevelController.text),
-        currentDepth:
-            (widget.waterLevelPercent / 100) *
-            double.parse(_depthController.text),
+        name: name,
+        depth: depth,
+        normalLevel: normalLevel,
+        maxLevel: maxLevel,
+        minLevel: minLevel,
+        currentDepth: newCurrentDepth, // Gunakan perhitungan yang tepat
       );
 
       widget.onSettingsChanged(newPool);
@@ -103,24 +156,26 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.error, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Expanded(child: Text('Error: Periksa input angka')),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
+      _showErrorSnackBar('Error: Periksa format input angka');
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
           ),
-        );
-      }
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
     }
   }
 
@@ -335,14 +390,14 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
                         const SizedBox(height: 16),
                         _buildTextField(
                           controller: _maxLevelController,
-                          label: 'Level Maksimal (%)',
+                          label: 'Level Maksimum (%)',
                           icon: Icons.trending_up,
                           isNumeric: true,
                         ),
                         const SizedBox(height: 16),
                         _buildTextField(
                           controller: _minLevelController,
-                          label: 'Level Minimal (%)',
+                          label: 'Level Minimum (%)',
                           icon: Icons.trending_down,
                           isNumeric: true,
                         ),
@@ -396,7 +451,7 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Row 2: Level Normal dan Level Maksimal
+                        // Row 2: Level Normal dan Level Maksimum
                         Row(
                           children: [
                             Expanded(
@@ -411,7 +466,7 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
                             Expanded(
                               child: _buildTextField(
                                 controller: _maxLevelController,
-                                label: 'Level Maksimal (%)',
+                                label: 'Level Maksimum (%)',
                                 icon: Icons.trending_up,
                                 isNumeric: true,
                               ),
@@ -420,13 +475,13 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Row 3: Level Minimal dan Tombol Simpan
+                        // Row 3: Level Minimum dan Tombol Simpan
                         Row(
                           children: [
                             Expanded(
                               child: _buildTextField(
                                 controller: _minLevelController,
-                                label: 'Level Minimal (%)',
+                                label: 'Level Minimum (%)',
                                 icon: Icons.trending_down,
                                 isNumeric: true,
                               ),

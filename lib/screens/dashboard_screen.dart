@@ -1,5 +1,5 @@
 // lib/screens/dashboard_screen.dart
-// ignore_for_file: prefer_final_fields
+// ignore_for_file: prefer_final_fields, unused_field, unused_element
 
 import 'dart:async';
 import 'dart:math';
@@ -118,17 +118,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final currentPool = _poolSettings[_selectedPoolKey]!;
     final currentDepthCm = currentPool.currentDepth;
 
-    if (currentDepthCm < 30) {
-      _valveStatus = 'open';
-      _drainStatus = 'closed';
-      _addNotification('Level air rendah! Kran dibuka otomatis', 'warning');
-    } else if (currentDepthCm > currentPool.normalLevel) {
-      _valveStatus = 'closed';
-      _drainStatus = 'open';
-      _addNotification('Level air tinggi! Pembuangan dibuka', 'warning');
+    // Debug current status
+    _debugCurrentStatus();
+
+    Logger.d(
+      'Dashboard: Checking water level control - Current depth: $currentDepthCm cm',
+    );
+    Logger.d(
+      'Dashboard: Pool settings - Min: ${currentPool.minLevel}%, Max: ${currentPool.maxLevel}%, Normal: ${currentPool.normalLevel} cm',
+    );
+
+    // Konversi persentase ke cm untuk perbandingan yang tepat
+    final minDepthCm = (currentPool.minLevel / 100) * currentPool.depth;
+    final maxDepthCm = (currentPool.maxLevel / 100) * currentPool.depth;
+
+    Logger.d(
+      'Dashboard: Calculated thresholds - Min: $minDepthCm cm, Max: $maxDepthCm cm',
+    );
+
+    // Validasi nilai-nilai threshold
+    if (minDepthCm >= maxDepthCm) {
+      Logger.w('Dashboard: Invalid threshold values - min >= max');
+      _addNotification('Pengaturan threshold tidak valid', 'warning');
+      return;
+    }
+
+    if (currentDepthCm < minDepthCm) {
+      // Level air terlalu rendah
+      setState(() {
+        _valveStatus = 'open';
+        _drainStatus = 'closed';
+      });
+      _addNotification(
+        'Level air rendah (${currentDepthCm.toStringAsFixed(1)} cm)! Kran dibuka otomatis',
+        'warning',
+      );
+      Logger.i('Dashboard: Water level too low, opening valve');
+    } else if (currentDepthCm > maxDepthCm) {
+      // Level air terlalu tinggi
+      setState(() {
+        _valveStatus = 'closed';
+        _drainStatus = 'open';
+      });
+      _addNotification(
+        'Level air berlebihan (${currentDepthCm.toStringAsFixed(1)} cm)! Kran ditutup dan pembuangan dibuka',
+        'warning',
+      );
+      Logger.i(
+        'Dashboard: Water level too high, closing valve and opening drain',
+      );
+    } else if (currentDepthCm >= currentPool.normalLevel - 5 &&
+        currentDepthCm <= currentPool.normalLevel + 5) {
+      // Level air normal (dalam range ±5cm dari level normal)
+      setState(() {
+        _valveStatus = 'auto';
+        _drainStatus = 'closed';
+      });
+      Logger.i('Dashboard: Water level normal, setting to auto mode');
+    } else if (currentDepthCm < currentPool.normalLevel) {
+      // Level air di bawah normal tapi masih di atas minimum
+      setState(() {
+        _valveStatus = 'open';
+        _drainStatus = 'closed';
+      });
+      Logger.i('Dashboard: Water level below normal, opening valve');
     } else {
-      _valveStatus = 'auto';
-      _drainStatus = 'closed';
+      // Level air di atas normal tapi masih di bawah maksimum
+      setState(() {
+        _valveStatus = 'closed';
+        _drainStatus = 'closed';
+      });
+      Logger.i(
+        'Dashboard: Water level above normal but below max, closing valve',
+      );
     }
   }
 
@@ -203,19 +265,84 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _onPoolSelected(String poolKey) {
+    if (!_isInitialized) return;
+
     setState(() {
       _selectedPoolKey = poolKey;
-      // Auto-show settings when switching pools for better UX
-      _showSettings = true;
     });
-    _addNotification('Beralih ke ${_poolSettings[poolKey]!.name}', 'info');
+
+    // Trigger pengecekan kontrol untuk pool yang baru dipilih
+    _checkWaterLevelAndControl();
+
+    _addNotification('Beralih ke ${_poolSettings[poolKey]?.name}', 'info');
+  }
+
+  void _refreshMonitoringData() {
+    final currentPool = _poolSettings[_selectedPoolKey]!;
+
+    // Recalculate semua nilai monitoring berdasarkan current depth
+    if (currentPool.currentDepth >= 0) {
+      setState(() {
+        _waterLevel = (currentPool.currentDepth / currentPool.depth) * 100;
+        _waterLevel = _waterLevel.clamp(0.0, 100.0);
+      });
+
+      // Trigger control check
+      _checkWaterLevelAndControl();
+
+      Logger.i('Dashboard: Monitoring data refreshed');
+      Logger.d('New water level: $_waterLevel%');
+      Logger.d('Pool depth: ${currentPool.depth} cm');
+      Logger.d('Current depth: ${currentPool.currentDepth} cm');
+    }
   }
 
   void _onPoolSettingsChanged(Pool newPool) {
     setState(() {
+      // Update pool settings
       _poolSettings[_selectedPoolKey] = newPool;
     });
+
+    // Refresh monitoring data dengan pengaturan baru
+    _refreshMonitoringData();
+
     _addNotification('Pengaturan ${newPool.name} diperbarui', 'success');
+
+    // Log perubahan untuk debugging
+    Logger.i('Pool settings updated: ${newPool.name}');
+    Logger.d('New depth: ${newPool.depth} cm');
+    Logger.d('New normal level: ${newPool.normalLevel} cm');
+    Logger.d('New min level: ${newPool.minLevel}%');
+    Logger.d('New max level: ${newPool.maxLevel}%');
+  }
+
+  void _onPoolAdded(String key, Pool pool) {
+    setState(() {
+      _poolSettings[key] = pool;
+      // Jika ini adalah kolam pertama, pilih sebagai default
+      if (_poolSettings.length == 1) {
+        _selectedPoolKey = key;
+      }
+    });
+    _addNotification(
+      'Kolam/wadah "${pool.name}" berhasil ditambahkan',
+      'success',
+    );
+  }
+
+  void _onPoolRemoved(String key) {
+    if (_poolSettings.length <= 1) {
+      _addNotification('Tidak dapat menghapus kolam terakhir', 'warning');
+      return;
+    }
+
+    setState(() {
+      _poolSettings.remove(key);
+      // Jika kolam yang dihapus sedang dipilih, pilih yang pertama
+      if (_selectedPoolKey == key) {
+        _selectedPoolKey = _poolSettings.keys.first;
+      }
+    });
   }
 
   void _setupDataRefresh() {
@@ -267,10 +394,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _waterLevel = _waterLevel.clamp(0.0, 100.0);
             Logger.d('Dashboard: Water level percentage: $_waterLevel%');
 
-            // Auto control logic
-            if (_valveStatus == 'auto') {
-              _checkWaterLevelAndControl();
-            }
+            // Auto control logic - SELALU jalankan untuk update status
+            _checkWaterLevelAndControl();
           } else {
             // Jika error, tambahkan notifikasi
             Logger.e('Dashboard: Error fetching data: ${data.errorMessage}');
@@ -283,10 +408,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _addNotification('Error fetching data: $e', 'error');
         });
+        _addNotification('Error fetching data: $e', 'error');
       }
     }
+  }
+
+  void _debugCurrentStatus() {
+    final currentPool = _poolSettings[_selectedPoolKey]!;
+    Logger.d('=== CURRENT STATUS DEBUG ===');
+    Logger.d('Selected Pool: ${currentPool.name}');
+    Logger.d('Current Depth: ${currentPool.currentDepth} cm');
+    Logger.d('Pool Total Depth: ${currentPool.depth} cm');
+    Logger.d('Water Level Percentage: $_waterLevel%');
+    Logger.d('Valve Status: $_valveStatus');
+    Logger.d('Drain Status: $_drainStatus');
+    Logger.d('Normal Level: ${currentPool.normalLevel} cm');
+    Logger.d(
+      'Min Level: ${currentPool.minLevel}% (${(currentPool.minLevel / 100) * currentPool.depth} cm)',
+    );
+    Logger.d(
+      'Max Level: ${currentPool.maxLevel}% (${(currentPool.maxLevel / 100) * currentPool.depth} cm)',
+    );
+    Logger.d('==========================');
   }
 
   @override
@@ -320,6 +464,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     poolSettings: _poolSettings,
                     selectedPoolKey: _selectedPoolKey,
                     onPoolSelected: _onPoolSelected,
+                    onPoolAdded: _onPoolAdded,
+                    onPoolRemoved: _onPoolRemoved,
                   ),
 
                   // Pool Settings (langsung di bawah selection)

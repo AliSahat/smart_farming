@@ -1,3 +1,5 @@
+// ignore_for_file: unused_import, unused_field, prefer_final_fields
+
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';

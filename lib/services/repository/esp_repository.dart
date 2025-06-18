@@ -1,3 +1,5 @@
+// ignore_for_file: unused_field, unused_import, constant_identifier_names
+
 import 'package:chopper/chopper.dart';
 import 'package:smart_farming/models/esp_water_data.dart';
 import 'package:smart_farming/services/chopper/esp_service.dart';
