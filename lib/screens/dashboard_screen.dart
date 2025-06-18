@@ -5,16 +5,20 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:smart_farming/models/esp_water_data.dart';
 import 'package:smart_farming/services/repository/esp_repository.dart';
 import 'package:smart_farming/utils/logger.dart';
+import '../providers/pool_provider.dart';
 
 import '../models/notification_model.dart';
 import '../models/pool_model.dart';
+import '../data/pool_data.dart';
+import '../screens/add_pool_screen.dart';
 
 import '../widgets/dashboard/header_widget.dart';
 import '../widgets/dashboard/water_monitor_widget.dart';
-import '../widgets/dashboard/pool_selection_widget.dart';
+import '../widgets/dashboard/pool_selector_widget.dart';
 import '../widgets/dashboard/pool_settings_widget.dart';
 import '../widgets/dashboard/control_status_card.dart';
 import '../widgets/dashboard/manual_controls_card.dart';
@@ -31,59 +35,73 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   // State variables
-  double _waterLevel = 65.0; // Percentage
-  String _valveStatus = 'auto'; // open, closed, auto
-  String _drainStatus = 'closed'; // open, closed
+  double _waterLevel = 65.0;
+  String _valveStatus = 'auto';
+  String _drainStatus = 'closed';
   bool _isConnected = true;
   bool _showSettings = false;
   String _selectedPoolKey = 'aquarium';
   Timer? _waterLevelTimer;
-  bool _isInitialized = false; // Flag untuk mencegah callback saat build
+  bool _isInitialized = false;
 
-  // Tambahkan ESP repository untuk mengambil data
+  // ESP repository untuk mengambil data
   final ESPRepository _espRepository = ESPRepository();
   ESPWaterData? _latestWaterData;
   bool _isLoading = false;
   Timer? _dataRefreshTimer;
 
-  final Map<String, Pool> _poolSettings = {
-    'kolam-ikan': Pool(
-      name: 'Kolam Ikan',
-      maxLevel: 85,
-      minLevel: 30,
-      normalLevel: 75,
-      depth: 150,
-      currentDepth: 97.5,
-    ),
-    'aquarium': Pool(
-      name: 'Aquarium',
-      maxLevel: 80,
-      minLevel: 30,
-      normalLevel: 80,
-      depth: 100,
-      currentDepth: 65,
-    ),
-    'tangki-air': Pool(
-      name: 'Tangki Air',
-      maxLevel: 90,
-      minLevel: 20,
-      normalLevel: 75,
-      depth: 200,
-      currentDepth: 130,
-    ),
-  };
+  // Pool settings menggunakan data dari PoolData
+  Map<String, Pool> _poolSettings = {};
 
   @override
   void initState() {
     super.initState();
-    // Schedule initial notification setelah build selesai
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _isInitialized = true;
-      // _startWaterLevelSimulation(); // Comment ini untuk menggunakan data real
-      _fetchWaterData(); // Fetch data dari ESP
-      _setupDataRefresh(); // Setup periodic refresh
-      _addNotification('Sistem dimulai', 'success');
+      _loadInitialData();
     });
+  }
+
+  Future<void> _loadInitialData() async {
+    try {
+      final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+
+      // Load pools from database
+      await poolProvider.loadPools();
+
+      // Ambil pools dari provider
+      _poolSettings = poolProvider.pools;
+
+      // Set selected pool jika ada
+      if (poolProvider.selectedPoolKey.isNotEmpty) {
+        _selectedPoolKey = poolProvider.selectedPoolKey;
+      }
+
+      setState(() {
+        _isInitialized = true;
+      });
+
+      if (_poolSettings.isNotEmpty) {
+        _fetchWaterData();
+        _setupDataRefresh();
+        _addNotification('Sistem dimulai', 'success');
+
+        // Start simulation if not already running
+        if (!poolProvider.isLoading) {
+          poolProvider.startWaterLevelSimulation();
+        }
+      } else {
+        _addNotification(
+          'Belum ada pool, silakan tambahkan pool pertama',
+          'info',
+        );
+      }
+    } catch (e) {
+      debugPrint('Error in _loadInitialData: $e');
+      setState(() {
+        _isInitialized = true;
+      });
+      _addNotification('Error saat memuat data: $e', 'error');
+    }
   }
 
   @override
@@ -93,50 +111,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  void _startWaterLevelSimulation() {
-    _waterLevelTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (mounted) {
-        setState(() {
-          // Simulasi perubahan water level
-          _waterLevel += (Random().nextDouble() - 0.5) * 2;
-          _waterLevel = _waterLevel.clamp(0.0, 100.0);
-
-          // Update current depth based on water level
-          final currentPool = _poolSettings[_selectedPoolKey]!;
-          currentPool.currentDepth = (_waterLevel / 100) * currentPool.depth;
-
-          // Auto control logic
-          if (_valveStatus == 'auto') {
-            _checkWaterLevelAndControl();
-          }
-        });
-      }
-    });
-  }
-
   void _checkWaterLevelAndControl() {
     final currentPool = _poolSettings[_selectedPoolKey]!;
     final currentDepthCm = currentPool.currentDepth;
 
-    // Debug current status
-    _debugCurrentStatus();
-
     Logger.d(
       'Dashboard: Checking water level control - Current depth: $currentDepthCm cm',
     );
-    Logger.d(
-      'Dashboard: Pool settings - Min: ${currentPool.minLevel}%, Max: ${currentPool.maxLevel}%, Normal: ${currentPool.normalLevel} cm',
-    );
 
-    // Konversi persentase ke cm untuk perbandingan yang tepat
     final minDepthCm = (currentPool.minLevel / 100) * currentPool.depth;
     final maxDepthCm = (currentPool.maxLevel / 100) * currentPool.depth;
 
-    Logger.d(
-      'Dashboard: Calculated thresholds - Min: $minDepthCm cm, Max: $maxDepthCm cm',
-    );
-
-    // Validasi nilai-nilai threshold
     if (minDepthCm >= maxDepthCm) {
       Logger.w('Dashboard: Invalid threshold values - min >= max');
       _addNotification('Pengaturan threshold tidak valid', 'warning');
@@ -144,7 +129,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     if (currentDepthCm < minDepthCm) {
-      // Level air terlalu rendah
       setState(() {
         _valveStatus = 'open';
         _drainStatus = 'closed';
@@ -153,9 +137,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'Level air rendah (${currentDepthCm.toStringAsFixed(1)} cm)! Kran dibuka otomatis',
         'warning',
       );
-      Logger.i('Dashboard: Water level too low, opening valve');
     } else if (currentDepthCm > maxDepthCm) {
-      // Level air terlalu tinggi
       setState(() {
         _valveStatus = 'closed';
         _drainStatus = 'open';
@@ -164,38 +146,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'Level air berlebihan (${currentDepthCm.toStringAsFixed(1)} cm)! Kran ditutup dan pembuangan dibuka',
         'warning',
       );
-      Logger.i(
-        'Dashboard: Water level too high, closing valve and opening drain',
-      );
     } else if (currentDepthCm >= currentPool.normalLevel - 5 &&
         currentDepthCm <= currentPool.normalLevel + 5) {
-      // Level air normal (dalam range ±5cm dari level normal)
       setState(() {
         _valveStatus = 'auto';
         _drainStatus = 'closed';
       });
-      Logger.i('Dashboard: Water level normal, setting to auto mode');
-    } else if (currentDepthCm < currentPool.normalLevel) {
-      // Level air di bawah normal tapi masih di atas minimum
-      setState(() {
-        _valveStatus = 'open';
-        _drainStatus = 'closed';
-      });
-      Logger.i('Dashboard: Water level below normal, opening valve');
-    } else {
-      // Level air di atas normal tapi masih di bawah maksimum
-      setState(() {
-        _valveStatus = 'closed';
-        _drainStatus = 'closed';
-      });
-      Logger.i(
-        'Dashboard: Water level above normal but below max, closing valve',
-      );
     }
   }
 
   void _addNotification(String message, String type) {
-    // Hanya kirim notification jika sudah initialized dan widget masih mounted
     if (!_isInitialized || !mounted) return;
 
     final notification = NotificationItem(
@@ -207,14 +167,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       poolName: _poolSettings[_selectedPoolKey]?.name,
     );
 
-    // Schedule callback setelah frame selesai
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.onNotificationAdded != null && mounted) {
         widget.onNotificationAdded!(notification);
       }
     });
 
-    // Show local snackbar di dashboard
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -271,82 +229,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _selectedPoolKey = poolKey;
     });
 
-    // Trigger pengecekan kontrol untuk pool yang baru dipilih
     _checkWaterLevelAndControl();
-
     _addNotification('Beralih ke ${_poolSettings[poolKey]?.name}', 'info');
+  }
+
+  void _onPoolSettingsChanged(Pool newPool) async {
+    final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+    final success = await poolProvider.updatePool(_selectedPoolKey, newPool);
+
+    if (success) {
+      _refreshMonitoringData();
+      _addNotification('Pengaturan ${newPool.name} diperbarui', 'success');
+    } else {
+      _addNotification('Gagal memperbarui pengaturan', 'error');
+    }
+  }
+
+  void _onPoolAdded(String key, Pool pool) async {
+    final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+    final success = await poolProvider.addPool(key, pool);
+
+    if (success) {
+      setState(() {
+        _selectedPoolKey = key;
+      });
+      _addNotification(
+        'Kolam/wadah "${pool.name}" berhasil ditambahkan',
+        'success',
+      );
+    } else {
+      _addNotification('Gagal menambahkan kolam/wadah', 'error');
+    }
+  }
+
+  void _navigateToAddPool() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddPoolScreen(onPoolAdded: _onPoolAdded),
+      ),
+    );
   }
 
   void _refreshMonitoringData() {
     final currentPool = _poolSettings[_selectedPoolKey]!;
 
-    // Recalculate semua nilai monitoring berdasarkan current depth
     if (currentPool.currentDepth >= 0) {
       setState(() {
         _waterLevel = (currentPool.currentDepth / currentPool.depth) * 100;
         _waterLevel = _waterLevel.clamp(0.0, 100.0);
       });
 
-      // Trigger control check
       _checkWaterLevelAndControl();
-
-      Logger.i('Dashboard: Monitoring data refreshed');
-      Logger.d('New water level: $_waterLevel%');
-      Logger.d('Pool depth: ${currentPool.depth} cm');
-      Logger.d('Current depth: ${currentPool.currentDepth} cm');
     }
-  }
-
-  void _onPoolSettingsChanged(Pool newPool) {
-    setState(() {
-      // Update pool settings
-      _poolSettings[_selectedPoolKey] = newPool;
-    });
-
-    // Refresh monitoring data dengan pengaturan baru
-    _refreshMonitoringData();
-
-    _addNotification('Pengaturan ${newPool.name} diperbarui', 'success');
-
-    // Log perubahan untuk debugging
-    Logger.i('Pool settings updated: ${newPool.name}');
-    Logger.d('New depth: ${newPool.depth} cm');
-    Logger.d('New normal level: ${newPool.normalLevel} cm');
-    Logger.d('New min level: ${newPool.minLevel}%');
-    Logger.d('New max level: ${newPool.maxLevel}%');
-  }
-
-  void _onPoolAdded(String key, Pool pool) {
-    setState(() {
-      _poolSettings[key] = pool;
-      // Jika ini adalah kolam pertama, pilih sebagai default
-      if (_poolSettings.length == 1) {
-        _selectedPoolKey = key;
-      }
-    });
-    _addNotification(
-      'Kolam/wadah "${pool.name}" berhasil ditambahkan',
-      'success',
-    );
-  }
-
-  void _onPoolRemoved(String key) {
-    if (_poolSettings.length <= 1) {
-      _addNotification('Tidak dapat menghapus kolam terakhir', 'warning');
-      return;
-    }
-
-    setState(() {
-      _poolSettings.remove(key);
-      // Jika kolam yang dihapus sedang dipilih, pilih yang pertama
-      if (_selectedPoolKey == key) {
-        _selectedPoolKey = _poolSettings.keys.first;
-      }
-    });
   }
 
   void _setupDataRefresh() {
-    // Refresh data setiap 10 detik
     _dataRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (mounted) {
         _fetchWaterData();
@@ -362,9 +300,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
 
     try {
-      Logger.d('Dashboard: Fetching water data');
       final data = await _espRepository.getLatestWaterDistance();
-      Logger.i('Dashboard: Got water data: $data');
 
       if (mounted) {
         setState(() {
@@ -373,38 +309,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           if (data.isSuccess) {
             final currentPool = _poolSettings[_selectedPoolKey]!;
-
-            // Sisa ruang adalah pembacaan sensor (jarak dari sensor ke air)
             final remainingSpace = data.distanceToWater;
-            Logger.d(
-              'Dashboard: Sensor distance (remaining space): $remainingSpace cm',
-            );
 
-            // Ketinggian air saat ini = kedalaman total - sisa ruang
             currentPool.currentDepth = currentPool.depth - remainingSpace;
-            Logger.d(
-              'Dashboard: Calculated current depth: ${currentPool.currentDepth} cm',
-            );
-
-            // Jika ketinggian air negatif (sensor error), set ke 0
             if (currentPool.currentDepth < 0) currentPool.currentDepth = 0;
 
-            // Calculate water level percentage
             _waterLevel = (currentPool.currentDepth / currentPool.depth) * 100;
             _waterLevel = _waterLevel.clamp(0.0, 100.0);
-            Logger.d('Dashboard: Water level percentage: $_waterLevel%');
 
-            // Auto control logic - SELALU jalankan untuk update status
             _checkWaterLevelAndControl();
           } else {
-            // Jika error, tambahkan notifikasi
-            Logger.e('Dashboard: Error fetching data: ${data.errorMessage}');
             _addNotification('Error: ${data.errorMessage}', 'error');
           }
         });
       }
     } catch (e) {
-      Logger.e('Dashboard: Exception during fetch: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -414,198 +333,334 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _debugCurrentStatus() {
-    final currentPool = _poolSettings[_selectedPoolKey]!;
-    Logger.d('=== CURRENT STATUS DEBUG ===');
-    Logger.d('Selected Pool: ${currentPool.name}');
-    Logger.d('Current Depth: ${currentPool.currentDepth} cm');
-    Logger.d('Pool Total Depth: ${currentPool.depth} cm');
-    Logger.d('Water Level Percentage: $_waterLevel%');
-    Logger.d('Valve Status: $_valveStatus');
-    Logger.d('Drain Status: $_drainStatus');
-    Logger.d('Normal Level: ${currentPool.normalLevel} cm');
-    Logger.d(
-      'Min Level: ${currentPool.minLevel}% (${(currentPool.minLevel / 100) * currentPool.depth} cm)',
-    );
-    Logger.d(
-      'Max Level: ${currentPool.maxLevel}% (${(currentPool.maxLevel / 100) * currentPool.depth} cm)',
-    );
-    Logger.d('==========================');
-  }
-
   @override
   Widget build(BuildContext context) {
-    final currentPool = _poolSettings[_selectedPoolKey]!;
+    return Consumer<PoolProvider>(
+      builder: (context, poolProvider, child) {
+        // Update local state from provider
+        if (poolProvider.isInitialized) {
+          _poolSettings = poolProvider.pools;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              HeaderWidget(
-                isConnected: _isConnected,
-                onSettingsTap: () {
-                  setState(() {
-                    _showSettings = !_showSettings;
-                  });
-                },
-              ),
-              const SizedBox(height: 20),
+          // Pastikan selected pool valid
+          if (!_poolSettings.containsKey(_selectedPoolKey) &&
+              _poolSettings.isNotEmpty) {
+            _selectedPoolKey = _poolSettings.keys.first;
+          }
+        }
 
-              // Pool Selection dan Settings Section
-              Column(
+        // Jika belum initialized, tampilkan loading
+        if (!poolProvider.isInitialized) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
+            body: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Memuat aplikasi...'),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Jika tidak ada pool sama sekali, tampilkan empty state
+        if (_poolSettings.isEmpty) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    HeaderWidget(
+                      isConnected: _isConnected,
+                      onSettingsTap: () {},
+                    ),
+                    const SizedBox(height: 40),
+
+                    // Empty State
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.pool,
+                              size: 80,
+                              color: Colors.blue[400],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Belum Ada Kolam/Wadah',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1F2937),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Tambahkan kolam atau wadah pertama Anda\nuntuk mulai monitoring',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          ElevatedButton.icon(
+                            onPressed: _navigateToAddPool,
+                            icon: const Icon(Icons.add, size: 20),
+                            label: const Text('Tambah Kolam/Wadah'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue[600],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 16,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextButton(
+                            onPressed: () {
+                              _showHelpDialog();
+                            },
+                            child: const Text('Butuh bantuan?'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        // Normal dashboard dengan pools
+        final currentPool = _poolSettings[_selectedPoolKey]!;
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8FAFC),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  HeaderWidget(
+                    isConnected: _isConnected,
+                    onSettingsTap: () {
+                      setState(() {
+                        _showSettings = !_showSettings;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
                   // Pool Selection
-                  PoolSelectionWidget(
+                  PoolSelectorWidget(
                     poolSettings: _poolSettings,
                     selectedPoolKey: _selectedPoolKey,
                     onPoolSelected: _onPoolSelected,
-                    onPoolAdded: _onPoolAdded,
-                    onPoolRemoved: _onPoolRemoved,
+                    onAddPoolTapped: _navigateToAddPool,
                   ),
+                  const SizedBox(height: 20),
 
-                  // Pool Settings (langsung di bawah selection)
+                  // Pool Settings (show/hide)
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
                     height: _showSettings ? null : 0,
                     child: _showSettings
-                        ? Container(
-                            margin: const EdgeInsets.only(top: 12),
-                            child: PoolSettingsWidget(
-                              pool: currentPool,
-                              onSettingsChanged: _onPoolSettingsChanged,
-                              waterLevelPercent: _waterLevel,
-                            ),
+                        ? PoolSettingsWidget(
+                            pool: currentPool,
+                            onSettingsChanged: _onPoolSettingsChanged,
+                            waterLevelPercent: _waterLevel,
                           )
                         : const SizedBox.shrink(),
                   ),
-                ],
-              ),
-              const SizedBox(height: 20),
+                  if (_showSettings) const SizedBox(height: 20),
 
-              // Main Content - Responsive Layout
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth > 1200) {
-                    // Desktop Layout - 2 kolom
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Left Column - Water Monitor
-                        Expanded(
-                          flex: 3,
-                          child: WaterMonitorWidget(
-                            waterLevel: _waterLevel,
-                            pool: currentPool,
-                          ),
-                        ),
-                        const SizedBox(width: 20),
-
-                        // Right Column - Controls dan Sensor Data
-                        Expanded(
-                          flex: 2,
-                          child: Column(
-                            children: [
-                              SensorDataCard(
-                                waterLevel: _waterLevel,
-                                isConnected: _isConnected,
-                                poolName: currentPool.name,
-                              ),
-                              const SizedBox(height: 20),
-                              ControlStatusCard(
-                                valveStatus: _valveStatus,
-                                drainStatus: _drainStatus,
-                                normalLevel: currentPool.normalLevel,
-                              ),
-                              const SizedBox(height: 20),
-                              ManualControlsCard(
-                                addNotification: _addNotification,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  } else if (constraints.maxWidth > 768) {
-                    // Tablet Layout - 2 columns
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Left Column
-                        Expanded(
-                          flex: 2,
-                          child: Column(
-                            children: [
-                              WaterMonitorWidget(
+                  // Main Content - Responsive Layout
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth > 1200) {
+                        // Desktop Layout
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: WaterMonitorWidget(
                                 waterLevel: _waterLevel,
                                 pool: currentPool,
                               ),
-                              const SizedBox(height: 20),
-                              ControlStatusCard(
-                                valveStatus: _valveStatus,
-                                drainStatus: _drainStatus,
-                                normalLevel: currentPool.normalLevel,
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                children: [
+                                  SensorDataCard(
+                                    waterLevel: _waterLevel,
+                                    isConnected: _isConnected,
+                                    poolName: currentPool.name,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  ControlStatusCard(
+                                    valveStatus: _valveStatus,
+                                    drainStatus: _drainStatus,
+                                    normalLevel: currentPool.normalLevel,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  ManualControlsCard(
+                                    addNotification: _addNotification,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 20),
+                            ),
+                          ],
+                        );
+                      } else if (constraints.maxWidth > 768) {
+                        // Tablet Layout
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                children: [
+                                  WaterMonitorWidget(
+                                    waterLevel: _waterLevel,
+                                    pool: currentPool,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  ControlStatusCard(
+                                    valveStatus: _valveStatus,
+                                    drainStatus: _drainStatus,
+                                    normalLevel: currentPool.normalLevel,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              flex: 1,
+                              child: Column(
+                                children: [
+                                  SensorDataCard(
+                                    waterLevel: _waterLevel,
+                                    isConnected: _isConnected,
+                                    poolName: currentPool.name,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  ManualControlsCard(
+                                    addNotification: _addNotification,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      } else {
+                        // Mobile Layout
+                        return Column(
+                          children: [
+                            WaterMonitorWidget(
+                              waterLevel: _waterLevel,
+                              pool: currentPool,
+                            ),
+                            const SizedBox(height: 20),
+                            SensorDataCard(
+                              waterLevel: _waterLevel,
+                              isConnected: _isConnected,
+                              poolName: currentPool.name,
+                            ),
+                            const SizedBox(height: 20),
+                            ControlStatusCard(
+                              valveStatus: _valveStatus,
+                              drainStatus: _drainStatus,
+                              normalLevel: currentPool.normalLevel,
+                            ),
+                            const SizedBox(height: 20),
+                            ManualControlsCard(
+                              addNotification: _addNotification,
+                            ),
+                          ],
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-                        // Right Column
-                        Expanded(
-                          flex: 1,
-                          child: Column(
-                            children: [
-                              SensorDataCard(
-                                waterLevel: _waterLevel,
-                                isConnected: _isConnected,
-                                poolName: currentPool.name,
-                              ),
-                              const SizedBox(height: 20),
-                              ManualControlsCard(
-                                addNotification: _addNotification,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  } else {
-                    // Mobile Layout - Single column
-                    return Column(
-                      children: [
-                        WaterMonitorWidget(
-                          waterLevel: _waterLevel,
-                          pool: currentPool,
-                        ),
-                        const SizedBox(height: 20),
-                        SensorDataCard(
-                          waterLevel: _waterLevel,
-                          isConnected: _isConnected,
-                          poolName: currentPool.name,
-                        ),
-                        const SizedBox(height: 20),
-                        ControlStatusCard(
-                          valveStatus: _valveStatus,
-                          drainStatus: _drainStatus,
-                          normalLevel: currentPool.normalLevel,
-                        ),
-                        const SizedBox(height: 20),
-                        ManualControlsCard(addNotification: _addNotification),
-                      ],
-                    );
-                  }
-                },
+  void _showHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cara Menggunakan'),
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '1. Tambah Kolam/Wadah',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                'Klik tombol "Tambah Kolam/Wadah" untuk menambahkan kolam atau wadah air pertama Anda.',
+              ),
+              SizedBox(height: 12),
+              Text(
+                '2. Atur Parameter',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                'Masukkan nama, kedalaman, dan batas level air untuk monitoring otomatis.',
+              ),
+              SizedBox(height: 12),
+              Text(
+                '3. Mulai Monitoring',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                'Sistem akan otomatis memantau level air dan mengontrol kran sesuai pengaturan.',
               ),
             ],
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Mengerti'),
+          ),
+        ],
       ),
     );
   }
+
+  // ...existing methods...
 }

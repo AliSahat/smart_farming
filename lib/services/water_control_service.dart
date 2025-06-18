@@ -1,7 +1,5 @@
 import '../models/pool_model.dart';
-
-enum ValveStatus { open, closed, auto }
-enum DrainStatus { open, closed }
+import '../models/notification_model.dart' show ValveStatus, DrainStatus;
 
 class WaterControlService {
   ValveStatus getRecommendedValveStatus(Pool pool) {
@@ -19,7 +17,7 @@ class WaterControlService {
     }
     return DrainStatus.closed;
   }
-  
+
   String getValveStatusText(ValveStatus status) {
     switch (status) {
       case ValveStatus.open:
@@ -30,7 +28,7 @@ class WaterControlService {
         return 'OTOMATIS';
     }
   }
-  
+
   String getDrainStatusText(DrainStatus status) {
     switch (status) {
       case DrainStatus.open:
@@ -38,5 +36,27 @@ class WaterControlService {
       case DrainStatus.closed:
         return 'TERTUTUP';
     }
+  }
+
+  // Service untuk mengontrol valve dan drain
+  Future<bool> openValve() async {
+    // Implementasi kontrol valve
+    await Future.delayed(const Duration(milliseconds: 500));
+    return true;
+  }
+
+  Future<bool> closeValve() async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return true;
+  }
+
+  Future<bool> openDrain() async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return true;
+  }
+
+  Future<bool> closeDrain() async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return true;
   }
 }

@@ -2,7 +2,7 @@
 class NotificationItem {
   final int id;
   final String message;
-  final String type; // success, warning, info, error
+  final String type;
   final String time;
   final bool isRead;
   final String? poolName;
@@ -12,7 +12,7 @@ class NotificationItem {
     required this.message,
     required this.type,
     required this.time,
-    required this.isRead,
+    this.isRead = false,
     this.poolName,
   });
 
@@ -35,3 +35,7 @@ class NotificationItem {
     );
   }
 }
+
+enum ValveStatus { auto, open, closed }
+
+enum DrainStatus { open, closed }

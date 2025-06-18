@@ -1,43 +1,46 @@
-class HistoryItem {
-  final String id;
-  final DateTime timestamp;
+class HistoryEntry {
+  final int? id;
+  final String poolKey;
   final String poolName;
   final String event;
   final String eventType;
   final double waterLevel;
   final String details;
+  final DateTime timestamp;
 
-  HistoryItem({
-    required this.id,
-    required this.timestamp,
+  HistoryEntry({
+    this.id,
+    required this.poolKey,
     required this.poolName,
     required this.event,
     required this.eventType,
     required this.waterLevel,
     required this.details,
+    required this.timestamp,
   });
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'timestamp': timestamp.toIso8601String(),
-      'poolName': poolName,
-      'event': event,
-      'eventType': eventType,
-      'waterLevel': waterLevel,
-      'details': details,
-    };
+  factory HistoryEntry.fromMap(Map<String, dynamic> map) {
+    return HistoryEntry(
+      id: map['id'],
+      poolKey: map['pool_key'],
+      poolName: map['pool_name'],
+      event: map['event'],
+      eventType: map['event_type'],
+      waterLevel: map['water_level'].toDouble(),
+      details: map['details'],
+      timestamp: DateTime.parse(map['timestamp']),
+    );
   }
 
-  factory HistoryItem.fromJson(Map<String, dynamic> json) {
-    return HistoryItem(
-      id: json['id'],
-      timestamp: DateTime.parse(json['timestamp']),
-      poolName: json['poolName'],
-      event: json['event'],
-      eventType: json['eventType'],
-      waterLevel: json['waterLevel'],
-      details: json['details'],
-    );
+  Map<String, dynamic> toMap() {
+    return {
+      'pool_key': poolKey,
+      'pool_name': poolName,
+      'event': event,
+      'event_type': eventType,
+      'water_level': waterLevel,
+      'details': details,
+      'timestamp': timestamp.toIso8601String(),
+    };
   }
 }

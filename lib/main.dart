@@ -2,7 +2,8 @@
 // ignore_for_file: deprecated_member_use, unused_element
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // Add this import
+import 'package:provider/provider.dart';
+import 'package:smart_farming/utils/logger.dart';
 
 import 'theme/app_theme.dart';
 import 'providers/pool_provider.dart';
@@ -11,26 +12,50 @@ import 'screens/dashboard_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/database/database_helper.dart';
 
-void main() {
-  runApp(const SmartFarmingApp());
-}
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-class SmartFarmingApp extends StatelessWidget {
-  const SmartFarmingApp({Key? key}) : super(key: key);
+  // Test database connection saat startup
+  try {
+    final dbHelper = DatabaseHelper();
+    final db = await dbHelper.database;
+    Logger.i('✅ Database initialized successfully');
+    Logger.i('Database path: ${db.path}'); // <-- Ini akan print path database
 
-  @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
+    // Print path yang lebih jelas
+    print('=== DATABASE LOCATION ===');
+    print('Full path: ${db.path}');
+    print('========================');
+
+    // Get database info
+    final info = await dbHelper.getDatabaseInfo();
+    Logger.i('Database info: $info');
+  } catch (e) {
+    Logger.e('❌ Database initialization failed: $e');
+  }
+
+  runApp(
+    MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => PoolProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
-      child: MaterialApp(
-        title: 'Smart Farming',
-        theme: lightThemeData,
-        home: const MainScreen(),
-      ),
+      child: const SmartFarmingApp(),
+    ),
+  );
+}
+
+class SmartFarmingApp extends StatelessWidget {
+  const SmartFarmingApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Smart Farming',
+      theme: lightThemeData,
+      home: const MainScreen(),
     );
   }
 }
@@ -57,9 +82,30 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     // Initialize data
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final poolProvider = Provider.of<PoolProvider>(context, listen: false);
-      poolProvider.startWaterLevelSimulation();
+      _initializeApp();
     });
+  }
+
+  Future<void> _initializeApp() async {
+    final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+    final notificationProvider = Provider.of<NotificationProvider>(
+      context,
+      listen: false,
+    );
+
+    try {
+      // Load pools first
+      await poolProvider.loadPools();
+
+      // Hanya add test notifications jika ada pools
+      if (poolProvider.pools.isNotEmpty) {
+        notificationProvider.addTestNotifications();
+      }
+
+      Logger.i('App initialization completed');
+    } catch (e) {
+      Logger.e('Error during app initialization: $e');
+    }
   }
 
   @override
