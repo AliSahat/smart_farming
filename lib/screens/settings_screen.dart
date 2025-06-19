@@ -1,7 +1,8 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, unnecessary_import
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -217,6 +218,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.delete_forever,
                   onTap: _clearAllData,
                   textColor: Colors.red,
+                ),
+                _buildActionTile(
+                  title: 'Reset Panduan',
+                  subtitle: 'Tampilkan panduan awal lagi',
+                  icon: Icons.help_outline,
+                  onTap: _resetOnBoarding,
+                  textColor: Colors.blue,
                 ),
               ],
             ),
@@ -600,6 +608,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Hapus', style: TextStyle(color: Colors.red)),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _resetOnBoarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_completed', false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Panduan akan ditampilkan saat aplikasi dimulai ulang'),
+        backgroundColor: Colors.blue,
       ),
     );
   }

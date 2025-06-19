@@ -1,5 +1,5 @@
 // lib/main.dart
-// ignore_for_file: deprecated_member_use, unused_element
+// ignore_for_file: deprecated_member_use, unused_element, library_private_types_in_public_api, avoid_print
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +8,8 @@ import 'package:smart_farming/utils/logger.dart';
 import 'theme/app_theme.dart';
 import 'providers/pool_provider.dart';
 import 'providers/notification_provider.dart';
-import 'models/notification_model.dart'; // Tambah import ini
+import 'models/notification_model.dart';
+import 'screens/splash_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/notifications_screen.dart';
@@ -48,14 +49,29 @@ void main() async {
   );
 }
 
-class SmartFarmingApp extends StatefulWidget {
+class SmartFarmingApp extends StatelessWidget {
   const SmartFarmingApp({super.key});
 
   @override
-  _SmartFarmingAppState createState() => _SmartFarmingAppState();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Smart Farming',
+      theme: lightThemeData,
+      home: const SplashScreen(), // Mulai dari splash screen
+      debugShowCheckedModeBanner: false,
+    );
+  }
 }
 
-class _SmartFarmingAppState extends State<SmartFarmingApp> {
+// Main app setelah onboarding
+class SmartFarmingMainApp extends StatefulWidget {
+  const SmartFarmingMainApp({super.key});
+
+  @override
+  State<SmartFarmingMainApp> createState() => _SmartFarmingMainAppState();
+}
+
+class _SmartFarmingMainAppState extends State<SmartFarmingMainApp> {
   int _currentIndex = 0;
 
   late List<Widget> _screens;
@@ -108,34 +124,27 @@ class _SmartFarmingAppState extends State<SmartFarmingApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Smart Farming',
-      theme: lightThemeData,
-      home: Scaffold(
-        body: _screens[_currentIndex],
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          type: BottomNavigationBarType.fixed,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard),
-              label: 'Dashboard',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.notifications),
-              label: 'Notifikasi',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.history),
-              label: 'Histori',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings),
-              label: 'Pengaturan',
-            ),
-          ],
-        ),
+    return Scaffold(
+      body: _screens[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notifications),
+            label: 'Notifikasi',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Histori'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Pengaturan',
+          ),
+        ],
       ),
     );
   }
