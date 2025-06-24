@@ -186,7 +186,7 @@ class SensorDataCard extends StatelessWidget {
             latestWaterData?.isSuccess == true ? Colors.green : Colors.red,
           ),
           _buildStatItem('Mode', 'Otomatis', Colors.blue),
-          _buildStatItem('Refresh', '10s', Colors.orange),
+          _buildStatItem('Refresh', '5s', Colors.orange),
         ],
       ),
     );

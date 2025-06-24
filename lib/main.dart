@@ -15,6 +15,7 @@ import 'screens/history_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/database/database_helper.dart';
+import 'widgets/shared/custom_bottom_navigation_bar.dart'; // Import navbar
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,7 +58,7 @@ class SmartFarmingApp extends StatelessWidget {
     return MaterialApp(
       title: 'Smart Farming',
       theme: lightThemeData,
-      home: const SplashScreen(), // Mulai dari splash screen
+      home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
@@ -73,7 +74,6 @@ class SmartFarmingMainApp extends StatefulWidget {
 
 class _SmartFarmingMainAppState extends State<SmartFarmingMainApp> {
   int _currentIndex = 0;
-
   late List<Widget> _screens;
 
   @override
@@ -122,29 +122,19 @@ class _SmartFarmingMainAppState extends State<SmartFarmingMainApp> {
     }
   }
 
+  void _onNavItemTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: _screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: CustomBottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Notifikasi',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Histori'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Pengaturan',
-          ),
-        ],
+        onTap: _onNavItemTapped,
       ),
     );
   }
