@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unnecessary_string_interpolations, unused_local_variable
+// ignore_for_file: deprecated_member_use, unnecessary_string_interpolations, unused_local_variable, unused_element
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -150,17 +150,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       body: Column(
         children: [
-          // Filter Section
+          // Filter Section - Minimized
           Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
+                  blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
               ],
@@ -168,20 +168,43 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header Row - Compact
                 Row(
                   children: [
-                    const Icon(Icons.filter_list, color: Colors.blue),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Filter Histori',
+                    Icon(Icons.tune, color: Colors.blue, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Filter',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
+                        color: Colors.grey[800],
                       ),
                     ),
                     const Spacer(),
-                    TextButton(
-                      onPressed: () {
+                    // Active filter indicator
+                    if (_hasActiveFilters())
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _getActiveFilterCount().toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () {
                         setState(() {
                           _selectedFilter = 'semua';
                           _selectedPool = 'semua';
@@ -189,76 +212,227 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           _endDate = null;
                         });
                       },
-                      child: const Text('Reset'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Reset',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
 
-                // Date range display
+                const SizedBox(height: 12),
+
+                // Compact Filters Row
+                Row(
+                  children: [
+                    // Event Type - Simplified to just "Semua"
+                    Expanded(
+                      flex: 2, // Reduced flex since we only have one option
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Jenis:',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          _buildCompactFilterChip('Semua Event', 'semua', true),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Pool Selection - Compact
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Kolam:',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            height: 28,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey[300]!),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _selectedPool,
+                                isExpanded: true,
+                                isDense: true,
+                                icon: Icon(
+                                  Icons.keyboard_arrow_down,
+                                  size: 14,
+                                  color: Colors.grey[600],
+                                ),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[800],
+                                ),
+                                onChanged: (String? newValue) {
+                                  if (newValue != null) {
+                                    setState(() {
+                                      _selectedPool = newValue;
+                                    });
+                                  }
+                                },
+                                items: [
+                                  _buildPoolDropdownItem('semua', 'Semua'),
+                                  _buildPoolDropdownItem(
+                                    'aquarium',
+                                    'Aquarium',
+                                  ),
+                                  _buildPoolDropdownItem('kolam', 'Kolam'),
+                                  _buildPoolDropdownItem('tangki', 'Tangki'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Date Range - Compact
+                    GestureDetector(
+                      onTap: _showDatePicker,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tanggal:',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: _startDate != null && _endDate != null
+                                    ? Colors.blue
+                                    : Colors.grey[300]!,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              color: _startDate != null && _endDate != null
+                                  ? Colors.blue.withOpacity(0.1)
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.date_range,
+                                  size: 12,
+                                  color: _startDate != null && _endDate != null
+                                      ? Colors.blue
+                                      : Colors.grey[500],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _getCompactDateRange(),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color:
+                                        _startDate != null && _endDate != null
+                                        ? Colors.blue
+                                        : Colors.grey[500],
+                                    fontWeight:
+                                        _startDate != null && _endDate != null
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Date range display when selected - more compact
                 if (_startDate != null && _endDate != null) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.date_range,
-                          size: 16,
+                        Icon(
+                          Icons.calendar_today,
+                          size: 12,
                           color: Colors.blue,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         Text(
-                          '${DateFormat('dd/MM/yyyy').format(_startDate!)} - ${DateFormat('dd/MM/yyyy').format(_endDate!)}',
+                          '${DateFormat('dd/MM').format(_startDate!)} - ${DateFormat('dd/MM').format(_endDate!)}',
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: Colors.blue,
                             fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _startDate = null;
+                              _endDate = null;
+                            });
+                          },
+                          child: Icon(
+                            Icons.close,
+                            size: 12,
+                            color: Colors.blue,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ],
-
-                const SizedBox(height: 16),
-
-                // Filter by type
-                const Text(
-                  'Jenis Event:',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    _buildFilterChip('Semua', 'semua'),
-                    _buildFilterChip('Otomatis', 'otomatis'),
-                    _buildFilterChip('Manual', 'manual'),
-                    _buildFilterChip('Peringatan', 'peringatan'),
-                    _buildFilterChip('Sistem', 'sistem'),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Filter by pool
-                const Text(
-                  'Kolam/Wadah:',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    _buildPoolChip('Semua', 'semua'),
-                    _buildPoolChip('Aquarium', 'aquarium'),
-                    _buildPoolChip('Kolam Ikan', 'kolam'),
-                    _buildPoolChip('Tangki Air', 'tangki'),
-                  ],
-                ),
               ],
             ),
           ),
@@ -764,6 +938,68 @@ Detail: ${item.details}
         backgroundColor: Colors.blue,
       ),
     );
+  }
+
+  Widget _buildCompactFilterChip(String label, String value, bool isEventType) {
+    final isSelected = _selectedFilter == value;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedFilter = value;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? Colors.blue : Colors.grey[300]!,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            color: isSelected ? Colors.blue : Colors.grey[600],
+          ),
+        ),
+      ),
+    );
+  }
+
+  DropdownMenuItem<String> _buildPoolDropdownItem(String value, String label) {
+    return DropdownMenuItem<String>(
+      value: value,
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 11),
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  String _getCompactDateRange() {
+    if (_startDate == null || _endDate == null) {
+      return 'Pilih';
+    }
+    return '${DateFormat('dd/MM').format(_startDate!)}-${DateFormat('dd/MM').format(_endDate!)}';
+  }
+
+  bool _hasActiveFilters() {
+    return _selectedFilter != 'semua' ||
+        _selectedPool != 'semua' ||
+        (_startDate != null && _endDate != null);
+  }
+
+  int _getActiveFilterCount() {
+    int count = 0;
+    if (_selectedFilter != 'semua') count++;
+    if (_selectedPool != 'semua') count++;
+    if (_startDate != null && _endDate != null) count++;
+    return count;
   }
 }
 

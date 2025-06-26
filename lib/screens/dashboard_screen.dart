@@ -125,7 +125,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Konversi persentase ke cm untuk perbandingan yang tepat
     final minDepthCm = (currentPool.minLevel / 100) * currentPool.depth;
-    final maxDepthCm = (currentPool.maxLevel / 100) * currentPool.depth;
+    // Jika maxLevel bernilai 0, anggap tidak ada batas maksimum (tak terhingga)
+    final maxDepthCm = currentPool.maxLevel == 0
+      ? double.infinity
+      : (currentPool.maxLevel / 100) * currentPool.depth;
 
     Logger.d(
       'Dashboard: Calculated thresholds - Min: $minDepthCm cm, Max: $maxDepthCm cm',

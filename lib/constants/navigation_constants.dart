@@ -1,52 +1,69 @@
 // lib/constants/navigation_constants.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-/// Navigation constants and configurations for the app
-class NavigationConstants {
-  NavigationConstants._(); // Private constructor to prevent instantiation
+/// Central configuration for app navigation
+///
+/// This class provides a centralized way to manage navigation items,
+/// themes, animations, and accessibility settings.
+sealed class NavigationConstants {
+  // Prevent instantiation
+  NavigationConstants._internal();
 
-  // ===== NAVIGATION ITEMS =====
+  // ===== STATIC CONFIGURATION =====
 
-  /// Main navigation items for bottom navigation bar
+  /// Current navigation configuration version
+  static const String configVersion = '2.0.0';
+
+  /// Maximum number of navigation items allowed
+  static const int maxNavigationItems = 5;
+
+  // ===== MAIN NAVIGATION ITEMS =====
+
+  /// Primary navigation items for bottom navigation bar
   static const List<NavigationItem> mainNavigationItems = [
-    NavigationItem(
-      id: 'dashboard',
+    NavigationItem._internal(
+      id: NavigationItemId.dashboard,
       icon: Icons.dashboard_outlined,
       activeIcon: Icons.dashboard_rounded,
       label: 'Dashboard',
-      route: '/dashboard',
-      semanticLabel: 'Halaman Dashboard',
+      route: NavigationRoute.dashboard,
+      semanticLabel: 'Halaman Dashboard Utama',
+      priority: NavigationPriority.high,
     ),
-    NavigationItem(
-      id: 'notifications',
+    NavigationItem._internal(
+      id: NavigationItemId.notifications,
       icon: Icons.notifications_outlined,
       activeIcon: Icons.notifications_rounded,
       label: 'Notifikasi',
-      route: '/notifications',
-      semanticLabel: 'Halaman Notifikasi',
+      route: NavigationRoute.notifications,
+      semanticLabel: 'Halaman Pemberitahuan dan Peringatan',
       showBadge: true,
+      priority: NavigationPriority.high,
     ),
-    NavigationItem(
-      id: 'history',
+    NavigationItem._internal(
+      id: NavigationItemId.history,
       icon: Icons.history_outlined,
       activeIcon: Icons.history_rounded,
       label: 'Histori',
-      route: '/history',
-      semanticLabel: 'Halaman Histori',
+      route: NavigationRoute.history,
+      semanticLabel: 'Halaman Riwayat Data',
+      priority: NavigationPriority.medium,
     ),
-    NavigationItem(
-      id: 'settings',
+    NavigationItem._internal(
+      id: NavigationItemId.settings,
       icon: Icons.settings_outlined,
       activeIcon: Icons.settings_rounded,
       label: 'Pengaturan',
-      route: '/settings',
-      semanticLabel: 'Halaman Pengaturan',
+      route: NavigationRoute.settings,
+      semanticLabel: 'Halaman Pengaturan Aplikasi',
+      priority: NavigationPriority.low,
     ),
   ];
 
-  // ===== THEME COLORS =====
+  // ===== THEME CONFIGURATIONS =====
 
-  /// Light theme colors
+  /// Light theme navigation colors
   static const NavigationTheme lightTheme = NavigationTheme(
     selectedColor: Color(0xFF2563EB),
     unselectedColor: Color(0xFF6B7280),
@@ -57,20 +74,20 @@ class NavigationConstants {
     badgeTextColor: Colors.white,
   );
 
-  /// Dark theme colors
+  /// Dark theme navigation colors
   static const NavigationTheme darkTheme = NavigationTheme(
     selectedColor: Color(0xFF60A5FA),
     unselectedColor: Color(0xFF9CA3AF),
     backgroundColor: Color(0xFF1F2937),
     borderColor: Color(0xFF374151),
-    shadowColor: Color(0x1AFFFFFF),
-    badgeColor: Color(0xFFEF4444),
+    shadowColor: Color(0x40000000),
+    badgeColor: Color(0xFFF87171),
     badgeTextColor: Colors.white,
   );
 
-  // ===== DIMENSIONS =====
+  // ===== DIMENSIONS & SPACING =====
 
-  /// Navigation bar dimensions and sizing
+  /// Navigation dimensions configuration
   static const NavigationDimensions dimensions = NavigationDimensions(
     height: 80.0,
     iconSize: 24.0,
@@ -86,9 +103,9 @@ class NavigationConstants {
     badgeFontSize: 10.0,
   );
 
-  // ===== ANIMATION SETTINGS =====
+  // ===== ANIMATION CONFIGURATIONS =====
 
-  /// Animation configurations
+  /// Animation settings for navigation interactions
   static const NavigationAnimations animations = NavigationAnimations(
     selectionDuration: Duration(milliseconds: 250),
     selectionCurve: Curves.easeInOutCubic,
@@ -98,9 +115,9 @@ class NavigationConstants {
     iconScaleCurve: Curves.bounceOut,
   );
 
-  // ===== ACCESSIBILITY =====
+  // ===== ACCESSIBILITY SETTINGS =====
 
-  /// Accessibility settings
+  /// Accessibility configuration
   static const NavigationAccessibility accessibility = NavigationAccessibility(
     enableSemanticLabels: true,
     enableHapticFeedback: true,
@@ -108,66 +125,132 @@ class NavigationConstants {
     focusHighlightColor: Color(0xFF2563EB),
   );
 
-  // ===== BACKWARD COMPATIBILITY GETTERS =====
+  // ===== BACKWARD COMPATIBILITY =====
 
-  /// Backward compatibility - use lightTheme.selectedColor instead
+  /// Legacy getter for navigation items
+  @Deprecated('Use NavigationConstants.mainNavigationItems instead')
+  static List<NavigationItem> get navigationItems => mainNavigationItems;
+
+  /// Legacy getters for simple access
   static Color get selectedColor => lightTheme.selectedColor;
-
-  /// Backward compatibility - use lightTheme.unselectedColor instead
   static Color get unselectedColor => lightTheme.unselectedColor;
-
-  /// Backward compatibility - use lightTheme.backgroundColor instead
   static Color get backgroundColor => lightTheme.backgroundColor;
-
-  /// Backward compatibility - use lightTheme.badgeColor instead
-  static Color get badgeColor => lightTheme.badgeColor;
-
-  /// Backward compatibility - use dimensions.iconSize instead
+  static double get selectedFontSize => dimensions.labelFontSize;
   static double get iconSize => dimensions.iconSize;
 
-  /// Backward compatibility - use dimensions.labelFontSize instead
-  static double get selectedFontSize => dimensions.labelFontSize;
+  // ===== UTILITY METHODS =====
 
-  /// Backward compatibility - use dimensions.labelFontSize instead
-  static double get unselectedFontSize => dimensions.labelFontSize;
+  /// Get navigation item by ID
+  static NavigationItem? getItemById(NavigationItemId id) {
+    try {
+      return mainNavigationItems.firstWhere((item) => item.id == id);
+    } catch (e) {
+      return null;
+    }
+  }
 
-  /// Backward compatibility - use dimensions.elevation instead
-  static double get elevation => dimensions.elevation;
+  /// Get navigation item by route
+  static NavigationItem? getItemByRoute(String route) {
+    try {
+      return mainNavigationItems.firstWhere((item) => item.route == route);
+    } catch (e) {
+      return null;
+    }
+  }
 
-  /// Backward compatibility - use mainNavigationItems instead
-  static List<NavigationItem> get navigationItems => mainNavigationItems;
+  /// Get enabled navigation items
+  static List<NavigationItem> get enabledItems =>
+      mainNavigationItems.where((item) => item.enabled).toList();
+
+  /// Get items with badges
+  static List<NavigationItem> get badgedItems =>
+      mainNavigationItems.where((item) => item.showBadge).toList();
+
+  /// Validate navigation configuration
+  static bool validateConfiguration() {
+    // Check item count
+    if (mainNavigationItems.length > maxNavigationItems) return false;
+
+    // Check for duplicate IDs
+    final ids = mainNavigationItems.map((item) => item.id).toSet();
+    if (ids.length != mainNavigationItems.length) return false;
+
+    // Check for duplicate routes
+    final routes = mainNavigationItems.map((item) => item.route).toSet();
+    if (routes.length != mainNavigationItems.length) return false;
+
+    return true;
+  }
 }
 
-/// Represents a single navigation item
-class NavigationItem {
-  /// Unique identifier for the navigation item
-  final String id;
+// ===== ENUMS & TYPE DEFINITIONS =====
 
-  /// Icon to display when item is not selected
+/// Strongly typed navigation item identifiers
+enum NavigationItemId {
+  dashboard('dashboard'),
+  notifications('notifications'),
+  history('history'),
+  settings('settings');
+
+  const NavigationItemId(this.value);
+  final String value;
+
+  @override
+  String toString() => value;
+}
+
+/// Navigation route constants
+sealed class NavigationRoute {
+  static const String dashboard = '/dashboard';
+  static const String notifications = '/notifications';
+  static const String history = '/history';
+  static const String settings = '/settings';
+
+  /// All valid routes
+  static const List<String> all = [dashboard, notifications, history, settings];
+
+  /// Check if route is valid
+  static bool isValid(String route) => all.contains(route);
+}
+
+/// Navigation item priority levels
+enum NavigationPriority {
+  low(0),
+  medium(1),
+  high(2),
+  critical(3);
+
+  const NavigationPriority(this.level);
+  final int level;
+
+  bool operator >(NavigationPriority other) => level > other.level;
+  bool operator <(NavigationPriority other) => level < other.level;
+  bool operator >=(NavigationPriority other) => level >= other.level;
+  bool operator <=(NavigationPriority other) => level <= other.level;
+}
+
+/// Haptic feedback types
+enum HapticFeedbackType { selection, impact, heavy, medium, light }
+
+// ===== DATA CLASSES =====
+
+/// Immutable navigation item configuration
+@immutable
+final class NavigationItem {
+  final NavigationItemId id;
   final IconData icon;
-
-  /// Icon to display when item is selected
   final IconData activeIcon;
-
-  /// Display label for the navigation item
   final String label;
-
-  /// Route path for navigation
   final String route;
-
-  /// Semantic label for accessibility
   final String? semanticLabel;
-
-  /// Whether to show a notification badge
   final bool showBadge;
-
-  /// Badge count (null for dot badge)
   final int? badgeCount;
-
-  /// Whether this item is enabled
   final bool enabled;
+  final NavigationPriority priority;
+  final Color? customColor;
+  final Map<String, dynamic>? metadata;
 
-  const NavigationItem({
+  const NavigationItem._internal({
     required this.id,
     required this.icon,
     required this.activeIcon,
@@ -177,11 +260,53 @@ class NavigationItem {
     this.showBadge = false,
     this.badgeCount,
     this.enabled = true,
+    this.priority = NavigationPriority.medium,
+    this.customColor,
+    this.metadata,
   });
+
+  /// Public constructor with validation
+  factory NavigationItem({
+    required NavigationItemId id,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required String route,
+    String? semanticLabel,
+    bool showBadge = false,
+    int? badgeCount,
+    bool enabled = true,
+    NavigationPriority priority = NavigationPriority.medium,
+    Color? customColor,
+    Map<String, dynamic>? metadata,
+  }) {
+    // Validation
+    assert(label.isNotEmpty, 'Label cannot be empty');
+    assert(NavigationRoute.isValid(route), 'Invalid route: $route');
+    assert(
+      badgeCount == null || badgeCount >= 0,
+      'Badge count must be non-negative',
+    );
+
+    return NavigationItem._internal(
+      id: id,
+      icon: icon,
+      activeIcon: activeIcon,
+      label: label,
+      route: route,
+      semanticLabel: semanticLabel ?? label,
+      showBadge: showBadge,
+      badgeCount: badgeCount,
+      enabled: enabled,
+      priority: priority,
+      customColor: customColor,
+      metadata: metadata,
+    );
+  }
 
   /// Create a copy with modified properties
   NavigationItem copyWith({
-    String? id,
+    NavigationItemId? id,
     IconData? icon,
     IconData? activeIcon,
     String? label,
@@ -190,8 +315,11 @@ class NavigationItem {
     bool? showBadge,
     int? badgeCount,
     bool? enabled,
+    NavigationPriority? priority,
+    Color? customColor,
+    Map<String, dynamic>? metadata,
   }) {
-    return NavigationItem(
+    return NavigationItem._internal(
       id: id ?? this.id,
       icon: icon ?? this.icon,
       activeIcon: activeIcon ?? this.activeIcon,
@@ -201,6 +329,9 @@ class NavigationItem {
       showBadge: showBadge ?? this.showBadge,
       badgeCount: badgeCount ?? this.badgeCount,
       enabled: enabled ?? this.enabled,
+      priority: priority ?? this.priority,
+      customColor: customColor ?? this.customColor,
+      metadata: metadata ?? this.metadata,
     );
   }
 
@@ -217,7 +348,8 @@ class NavigationItem {
   String toString() => 'NavigationItem(id: $id, label: $label, route: $route)';
 }
 
-/// Theme configuration for navigation
+/// Navigation theme configuration
+@immutable
 class NavigationTheme {
   final Color selectedColor;
   final Color unselectedColor;
@@ -238,7 +370,8 @@ class NavigationTheme {
   });
 }
 
-/// Dimension configuration for navigation
+/// Navigation dimensions configuration
+@immutable
 class NavigationDimensions {
   final double height;
   final double iconSize;
@@ -269,7 +402,8 @@ class NavigationDimensions {
   });
 }
 
-/// Animation configuration for navigation
+/// Navigation animations configuration
+@immutable
 class NavigationAnimations {
   final Duration selectionDuration;
   final Curve selectionCurve;
@@ -288,7 +422,8 @@ class NavigationAnimations {
   });
 }
 
-/// Accessibility configuration for navigation
+/// Navigation accessibility configuration
+@immutable
 class NavigationAccessibility {
   final bool enableSemanticLabels;
   final bool enableHapticFeedback;
@@ -301,12 +436,55 @@ class NavigationAccessibility {
     required this.minimumTouchTargetSize,
     required this.focusHighlightColor,
   });
+
+  /// Execute haptic feedback based on type
+  Future<void> performHapticFeedback(HapticFeedbackType type) async {
+    if (!enableHapticFeedback) return;
+
+    switch (type) {
+      case HapticFeedbackType.selection:
+        await HapticFeedback.selectionClick();
+        break;
+      case HapticFeedbackType.light:
+        await HapticFeedback.lightImpact();
+        break;
+      case HapticFeedbackType.medium:
+        await HapticFeedback.mediumImpact();
+        break;
+      case HapticFeedbackType.heavy:
+        await HapticFeedback.heavyImpact();
+        break;
+      case HapticFeedbackType.impact:
+        await HapticFeedback.lightImpact();
+        break;
+    }
+  }
 }
 
-/// Extension methods for NavigationItem list
-extension NavigationItemListExtension on List<NavigationItem> {
-  /// Find navigation item by ID
-  NavigationItem? findById(String id) {
+// ===== THEME MANAGER =====
+
+/// Get current navigation theme based on context
+class NavigationThemeManager {
+  static NavigationTheme getTheme(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark
+        ? NavigationConstants.darkTheme
+        : NavigationConstants.lightTheme;
+  }
+
+  static NavigationTheme getCurrentTheme(bool isDarkMode) {
+    return isDarkMode
+        ? NavigationConstants.darkTheme
+        : NavigationConstants.lightTheme;
+  }
+}
+
+// ===== EXTENSIONS =====
+
+/// Extensions for NavigationItem lists
+extension NavigationItemListX on List<NavigationItem> {
+  /// Find item by ID
+  NavigationItem? byId(NavigationItemId id) {
     try {
       return firstWhere((item) => item.id == id);
     } catch (e) {
@@ -314,8 +492,8 @@ extension NavigationItemListExtension on List<NavigationItem> {
     }
   }
 
-  /// Find navigation item by route
-  NavigationItem? findByRoute(String route) {
+  /// Find item by route
+  NavigationItem? byRoute(String route) {
     try {
       return firstWhere((item) => item.route == route);
     } catch (e) {
@@ -323,11 +501,50 @@ extension NavigationItemListExtension on List<NavigationItem> {
     }
   }
 
-  /// Get enabled navigation items only
-  List<NavigationItem> get enabledItems =>
-      where((item) => item.enabled).toList();
+  /// Get only enabled items
+  List<NavigationItem> get enabled => where((item) => item.enabled).toList();
 
   /// Get items with badges
-  List<NavigationItem> get itemsWithBadges =>
+  List<NavigationItem> get withBadges =>
       where((item) => item.showBadge).toList();
+
+  /// Sort by priority (high to low)
+  List<NavigationItem> get sortedByPriority {
+    final sorted = List<NavigationItem>.from(this);
+    sorted.sort((a, b) => b.priority.level.compareTo(a.priority.level));
+    return sorted;
+  }
+
+  /// Get total badge count
+  int get totalBadgeCount {
+    return where(
+      (item) => item.showBadge && item.badgeCount != null,
+    ).fold<int>(0, (sum, item) => sum + (item.badgeCount ?? 0));
+  }
+}
+
+/// Extensions for BuildContext navigation
+extension NavigationContextX on BuildContext {
+  /// Get current theme colors for navigation
+  NavigationTheme get navigationTheme {
+    final isDark = Theme.of(this).brightness == Brightness.dark;
+    return isDark
+        ? NavigationConstants.darkTheme
+        : NavigationConstants.lightTheme;
+  }
+
+  /// Get responsive navigation dimensions
+  NavigationDimensions get navigationDimensions {
+    return NavigationConstants.dimensions;
+  }
+
+  /// Check if reduced motion is enabled
+  bool get isReducedMotionEnabled {
+    return MediaQuery.of(this).disableAnimations;
+  }
+
+  /// Check if high contrast is enabled
+  bool get isHighContrastEnabled {
+    return MediaQuery.of(this).highContrast;
+  }
 }
