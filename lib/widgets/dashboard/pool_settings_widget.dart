@@ -1,3 +1,5 @@
+// lib/widgets/dashboard/pool_settings_widget.dart
+// VERSI PERBAIKAN FINAL - Input dalam CM
 // ignore_for_file: deprecated_member_use, sized_box_for_whitespace
 
 import 'package:flutter/material.dart';
@@ -37,16 +39,16 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
   void _initializeControllers() {
     _nameController = TextEditingController(text: widget.pool.name);
     _depthController = TextEditingController(
-      text: widget.pool.depth.toString(),
+      text: widget.pool.depth.toStringAsFixed(0),
     );
     _normalLevelController = TextEditingController(
-      text: widget.pool.normalLevel.toString(),
+      text: widget.pool.normalLevel.toStringAsFixed(0),
     );
     _maxLevelController = TextEditingController(
-      text: widget.pool.maxLevel.toString(),
+      text: widget.pool.maxLevel.toStringAsFixed(0),
     );
     _minLevelController = TextEditingController(
-      text: widget.pool.minLevel.toString(),
+      text: widget.pool.minLevel.toStringAsFixed(0),
     );
   }
 
@@ -104,9 +106,7 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
           ),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
     }
@@ -136,20 +136,11 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
                 _buildHeader(),
                 const SizedBox(height: 20),
-
-                // Form Fields
                 _buildFormFields(),
                 const SizedBox(height: 20),
-
-                // Save Button
                 _buildSaveButton(),
-                const SizedBox(height: 16),
-
-                // Info
-                _buildInfoSection(),
               ],
             ),
           ),
@@ -164,18 +155,11 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
       decoration: BoxDecoration(
         color: Colors.orange.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.orange.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.orange.withOpacity(0.3), width: 1),
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.settings,
-            color: Colors.orange[600],
-            size: 24,
-          ),
+          Icon(Icons.settings, color: Colors.orange[600], size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -183,11 +167,7 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
               children: [
                 const Text(
                   'Pengaturan Kolam/Wadah',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2937),
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                 ),
                 Text(
                   'Mengatur: ${widget.pool.name}',
@@ -200,231 +180,79 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 6,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.orange[100],
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.edit,
-                  size: 16,
-                  color: Colors.orange[700],
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'EDIT MODE',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange[700],
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
 
   Widget _buildFormFields() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 600) {
-          // Mobile - Layout vertikal
-          return Column(
-            children: [
-              _buildTextField(
-                controller: _nameController,
-                label: 'Nama Kolam/Wadah',
-                icon: Icons.label,
-                validator: (value) {
-                  if (value?.trim().isEmpty ?? true) {
-                    return 'Nama tidak boleh kosong';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _depthController,
-                label: 'Kedalaman Total (cm)',
-                icon: Icons.straighten,
-                isNumeric: true,
-                validator: (value) {
-                  if (value?.isEmpty ?? true) return 'Kedalaman tidak boleh kosong';
-                  final depth = double.tryParse(value!);
-                  if (depth == null || depth <= 0) {
-                    return 'Kedalaman harus berupa angka positif';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _normalLevelController,
-                label: 'Level Normal (cm)',
-                icon: Icons.track_changes,
-                isNumeric: true,
-                validator: (value) {
-                  if (value?.isEmpty ?? true) return 'Level normal tidak boleh kosong';
-                  final normal = double.tryParse(value!);
-                  if (normal == null || normal <= 0) {
-                    return 'Level normal harus berupa angka positif';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _maxLevelController,
-                label: 'Level Maksimum (%)',
-                icon: Icons.trending_up,
-                isNumeric: true,
-                validator: (value) {
-                  if (value?.isEmpty ?? true) return 'Level max tidak boleh kosong';
-                  final max = double.tryParse(value!);
-                  if (max == null || max <= 0 || max > 100) {
-                    return 'Level max harus 1-100%';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _minLevelController,
-                label: 'Level Minimum (%)',
-                icon: Icons.trending_down,
-                isNumeric: true,
-                validator: (value) {
-                  if (value?.isEmpty ?? true) return 'Level min tidak boleh kosong';
-                  final min = double.tryParse(value!);
-                  if (min == null || min <= 0 || min > 100) {
-                    return 'Level min harus 1-100%';
-                  }
-                  final max = double.tryParse(_maxLevelController.text);
-                  if (max != null && min >= max) {
-                    return 'Level min harus < max';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          );
-        } else {
-          // Desktop/Tablet - Layout horizontal
-          return Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTextField(
-                      controller: _nameController,
-                      label: 'Nama Kolam/Wadah',
-                      icon: Icons.label,
-                      validator: (value) {
-                        if (value?.trim().isEmpty ?? true) {
-                          return 'Nama tidak boleh kosong';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildTextField(
-                      controller: _depthController,
-                      label: 'Kedalaman Total (cm)',
-                      icon: Icons.straighten,
-                      isNumeric: true,
-                      validator: (value) {
-                        if (value?.isEmpty ?? true) return 'Kedalaman tidak boleh kosong';
-                        final depth = double.tryParse(value!);
-                        if (depth == null || depth <= 0) {
-                          return 'Kedalaman harus berupa angka positif';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTextField(
-                      controller: _normalLevelController,
-                      label: 'Level Normal (cm)',
-                      icon: Icons.track_changes,
-                      isNumeric: true,
-                      validator: (value) {
-                        if (value?.isEmpty ?? true) return 'Level normal tidak boleh kosong';
-                        final normal = double.tryParse(value!);
-                        if (normal == null || normal <= 0) {
-                          return 'Level normal harus berupa angka positif';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildTextField(
-                      controller: _maxLevelController,
-                      label: 'Level Maksimum (%)',
-                      icon: Icons.trending_up,
-                      isNumeric: true,
-                      validator: (value) {
-                        if (value?.isEmpty ?? true) return 'Level max tidak boleh kosong';
-                        final max = double.tryParse(value!);
-                        if (max == null || max <= 0 || max > 100) {
-                          return 'Level max harus 1-100%';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTextField(
-                      controller: _minLevelController,
-                      label: 'Level Minimum (%)',
-                      icon: Icons.trending_down,
-                      isNumeric: true,
-                      validator: (value) {
-                        if (value?.isEmpty ?? true) return 'Level min tidak boleh kosong';
-                        final min = double.tryParse(value!);
-                        if (min == null || min <= 0 || min > 100) {
-                          return 'Level min harus 1-100%';
-                        }
-                        final max = double.tryParse(_maxLevelController.text);
-                        if (max != null && min >= max) {
-                          return 'Level min harus < max';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(child: Container()), // Spacer
-                ],
-              ),
-            ],
-          );
-        }
-      },
+    return Column(
+      children: [
+        _buildTextField(
+          controller: _nameController,
+          label: 'Nama Kolam/Wadah',
+          icon: Icons.label_important_outline,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _depthController,
+          label: 'Kedalaman Total (cm)',
+          icon: Icons.straighten,
+          isNumeric: true,
+          validator: (value) {
+            if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
+            final depth = double.tryParse(value!);
+            if (depth == null || depth <= 0) return 'Harus angka positif';
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _minLevelController,
+          label: 'Level Minimum (cm)', // Diubah dari % ke cm
+          icon: Icons.trending_down,
+          isNumeric: true,
+          validator: (value) {
+            if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
+            final min = double.tryParse(value!);
+            final depth = double.tryParse(_depthController.text);
+            if (min == null || min < 0) return 'Tidak boleh negatif';
+            if (depth != null && min >= depth) return 'Harus < Kedalaman Total';
+            final max = double.tryParse(_maxLevelController.text);
+            if (max != null && min >= max) return 'Harus < Level Maksimum';
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _maxLevelController,
+          label: 'Level Maksimum (cm)', // Diubah dari % ke cm
+          icon: Icons.trending_up,
+          isNumeric: true,
+          validator: (value) {
+            if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
+            final max = double.tryParse(value!);
+            final depth = double.tryParse(_depthController.text);
+            if (max == null || max <= 0) return 'Harus angka positif';
+            if (depth != null && max > depth)
+              return 'Tidak boleh > Kedalaman Total';
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _normalLevelController,
+          label: 'Target Level Normal (cm)',
+          icon: Icons.track_changes,
+          isNumeric: true,
+          validator: (value) {
+            if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
+            final normal = double.tryParse(value!);
+            if (normal == null || normal <= 0) return 'Harus angka positif';
+            return null;
+          },
+        ),
+      ],
     );
   }
 
@@ -444,7 +272,7 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, size: 18, color: Colors.orange[600]),
+        prefixIcon: Icon(icon, size: 20, color: Colors.orange[700]),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -457,12 +285,16 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[300]!),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red[400]!),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red[400]!, width: 2),
+        ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
       ),
     );
   }
@@ -476,7 +308,7 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
         icon: const Icon(Icons.save, size: 18),
         label: const Text(
           'Simpan Pengaturan',
-          style: TextStyle(fontWeight: FontWeight.w600),
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.orange[600],
@@ -486,29 +318,6 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildInfoSection() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, color: Colors.blue[600], size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Pengaturan akan diterapkan setelah menekan tombol Simpan. Pastikan nilai yang dimasukkan sudah benar.',
-              style: TextStyle(fontSize: 12, color: Colors.blue[700]),
-            ),
-          ),
-        ],
       ),
     );
   }

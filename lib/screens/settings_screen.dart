@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unnecessary_import
+// ignore_for_file: deprecated_member_use, unnecessary_import, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +19,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _darkMode = false;
   double _updateInterval = 5.0; // seconds
   String _language = 'id';
+
+  // Advanced features
+  bool _isSafetyTimerEnabled = false;
+  bool _isSchedulerEnabled = false;
 
   final TextEditingController _serverUrlController = TextEditingController(
     text: 'http://192.168.1.100:8080',
@@ -57,6 +61,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // Advanced Features & Time Settings
+            _buildSettingsSection(
+              title: 'Fitur Lanjutan & Waktu',
+              icon: Icons.timer_outlined,
+              children: [
+                _buildSwitchTile(
+                  title: 'Timer Pengaman',
+                  subtitle:
+                      'Hentikan aksi jika kran/pompa terlalu lama menyala',
+                  value: _isSafetyTimerEnabled,
+                  onChanged: (value) {
+                    setState(() {
+                      _isSafetyTimerEnabled = value;
+                    });
+                  },
+                  icon: Icons.security_rounded,
+                ),
+                const Divider(height: 24),
+                _buildSwitchTile(
+                  title: 'Jadwal Ganti Air',
+                  subtitle:
+                      'Aktifkan penggantian air terjadwal (Contoh: Minggu, 07:00)',
+                  value: _isSchedulerEnabled,
+                  onChanged: (value) {
+                    setState(() {
+                      _isSchedulerEnabled = value;
+                    });
+                  },
+                  icon: Icons.event_note_rounded,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
             // System Settings
             _buildSettingsSection(
               title: 'Pengaturan Sistem',
@@ -564,6 +603,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _darkMode = false;
                 _updateInterval = 5.0;
                 _language = 'id';
+                _isSafetyTimerEnabled = false;
+                _isSchedulerEnabled = false;
                 _serverUrlController.text = 'http://192.168.1.100:8080';
                 _deviceIdController.text = 'SF001';
               });

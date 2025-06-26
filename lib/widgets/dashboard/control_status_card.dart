@@ -1,10 +1,14 @@
+// lib/widgets/dashboard/control_status_card.dart
+// VERSI PERBAIKAN FINAL - FIX TYPE ERROR
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
+import '../../models/notification_model.dart'; // Import ini penting
 
 class ControlStatusCard extends StatelessWidget {
-  final String valveStatus;
-  final String drainStatus;
+  // FIX: Menggunakan tipe data enum
+  final ValveStatus valveStatus;
+  final DrainStatus drainStatus;
   final double normalLevel;
 
   const ControlStatusCard({
@@ -30,24 +34,17 @@ class ControlStatusCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _buildControlItem(
-              icon: Icons.speed,
+              icon: Icons.water_drop,
               label: 'Kran Utama',
-              status: _getValveStatusText(valveStatus),
+              status: _getValveStatusText(valveStatus), // Konversi enum ke teks
               color: _getValveStatusColor(valveStatus),
             ),
             const SizedBox(height: 12),
             _buildControlItem(
-              icon: Icons.flash_on,
+              icon: Icons.output_rounded,
               label: 'Kran Pembuangan',
-              status: _getDrainStatusText(drainStatus),
+              status: _getDrainStatusText(drainStatus), // Konversi enum ke teks
               color: _getDrainStatusColor(drainStatus),
-            ),
-            const SizedBox(height: 12),
-            _buildControlItem(
-              icon: Icons.track_changes,
-              label: 'Level Normal',
-              status: '${normalLevel.toStringAsFixed(1)} cm',
-              color: Colors.blue,
             ),
           ],
         ),
@@ -78,7 +75,7 @@ class ControlStatusCard extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    color: _getDarkerColor(color),
+                    color: color.withOpacity(0.9),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -86,7 +83,7 @@ class ControlStatusCard extends StatelessWidget {
                 Text(
                   status,
                   style: TextStyle(
-                    color: _getVeryDarkColor(color),
+                    color: color,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -99,63 +96,45 @@ class ControlStatusCard extends StatelessWidget {
     );
   }
 
-  // Helper method untuk mendapatkan warna yang lebih gelap (pengganti shade[700])
-  Color _getDarkerColor(Color baseColor) {
-    final hsl = HSLColor.fromColor(baseColor);
-    return hsl.withLightness((hsl.lightness * 0.6).clamp(0.0, 1.0)).toColor();
-  }
+  // --- Fungsi Helper untuk konversi Enum ke Tampilan ---
 
-  // Helper method untuk mendapatkan warna yang sangat gelap (pengganti shade[900])
-  Color _getVeryDarkColor(Color baseColor) {
-    final hsl = HSLColor.fromColor(baseColor);
-    return hsl.withLightness((hsl.lightness * 0.3).clamp(0.0, 1.0)).toColor();
-  }
-
-  String _getValveStatusText(String status) {
+  String _getValveStatusText(ValveStatus status) {
     switch (status) {
-      case 'open':
+      case ValveStatus.open:
         return 'TERBUKA';
-      case 'closed':
+      case ValveStatus.closed:
         return 'TERTUTUP';
-      case 'auto':
+      case ValveStatus.auto:
         return 'OTOMATIS';
-      default:
-        return 'TIDAK DIKETAHUI';
     }
   }
 
-  String _getDrainStatusText(String status) {
+  String _getDrainStatusText(DrainStatus status) {
     switch (status) {
-      case 'open':
+      case DrainStatus.open:
         return 'TERBUKA';
-      case 'closed':
+      case DrainStatus.closed:
         return 'TERTUTUP';
-      default:
-        return 'TIDAK DIKETAHUI';
     }
   }
 
-  Color _getValveStatusColor(String status) {
+  Color _getValveStatusColor(ValveStatus status) {
     switch (status) {
-      case 'open':
+      case ValveStatus.open:
         return Colors.green;
-      case 'closed':
+      case ValveStatus.closed:
         return Colors.red;
-      case 'auto':
+      case ValveStatus.auto:
         return Colors.blue;
-      default:
-        return Colors.grey;
     }
   }
 
-  Color _getDrainStatusColor(String status) {
+  Color _getDrainStatusColor(DrainStatus status) {
     switch (status) {
-      case 'open':
+      case DrainStatus.open:
         return Colors.orange;
-      case 'closed':
-        return Colors.green;
-      default:
-        return Colors.grey;
+      case DrainStatus.closed:
+        return Colors.blueGrey;
     }
   }
 }

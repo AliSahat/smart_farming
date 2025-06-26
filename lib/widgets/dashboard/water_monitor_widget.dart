@@ -1,31 +1,15 @@
 // lib/widgets/dashboard/water_monitor_widget.dart
-
+// VERSI PERBAIKAN FINAL - Menampilkan min/max dalam CM
 // ignore_for_file: deprecated_member_use, sized_box_for_whitespace
 
 import 'package:flutter/material.dart';
 import 'package:smart_farming/models/esp_water_data.dart';
 import '../../models/pool_model.dart';
 
-/// Widget untuk memantau tinggi air kolam dengan tampilan yang modern dan responsif
-///
-/// Widget ini menampilkan:
-/// - Level air dalam bentuk circular progress indicator
-/// - Status kondisi air (Normal/Rendah/Berlebih)
-/// - Informasi detail ketinggian, kedalaman, dan sisa ruang
-/// - Indikator batas aman dan minimum
 class WaterMonitorWidget extends StatelessWidget {
-  /// Level air dalam persen (0-100)
-  /// Dihitung berdasarkan: (currentDepth / totalDepth) * 100
   final double waterLevel;
-
-  /// Model data kolam yang berisi informasi kedalaman dan batas normal
   final Pool pool;
-
-  /// Data terbaru dari sensor ESP32 (optional)
-  /// Berisi informasi jarak sensor ke permukaan air dan timestamp
   final ESPWaterData? latestWaterData;
-
-  /// Status loading untuk menampilkan indikator saat data sedang diambil
   final bool isLoading;
 
   const WaterMonitorWidget({
@@ -36,40 +20,28 @@ class WaterMonitorWidget extends StatelessWidget {
     this.isLoading = false,
   });
 
-  /// Menentukan warna progress indicator berdasarkan kondisi air
   Color _getWaterLevelColor() {
-    if (pool.currentDepth < 30) {
-      return Colors.orange; // Air terlalu rendah
-    }
-    if (pool.currentDepth > pool.normalLevel) {
-      return Colors.red; // Air berlebih
-    }
-    return Colors.blue; // Kondisi normal
+    if (pool.isLevelTooLow) return Colors.orange;
+    if (pool.isLevelTooHigh) return Colors.red;
+    return Colors.blue;
   }
 
-  /// Mendapatkan status kondisi air dalam bentuk text
-  String _getWaterStatus() {
-    if (pool.currentDepth < 30) return 'Rendah';
-    if (pool.currentDepth > pool.normalLevel) return 'Berlebih';
-    return 'Normal';
-  }
+  String _getWaterStatus() => pool.levelStatus;
 
-  /// Mendapatkan ikon yang sesuai dengan status air
   IconData _getStatusIcon() {
-    if (pool.currentDepth < 30) return Icons.water_drop_outlined;
-    if (pool.currentDepth > pool.normalLevel) return Icons.warning_rounded;
+    if (pool.isLevelTooLow) return Icons.arrow_downward_rounded;
+    if (pool.isLevelTooHigh) return Icons.arrow_upward_rounded;
     return Icons.check_circle_outline;
   }
 
-  /// Mendapatkan pesan deskripsi berdasarkan status air
   String _getStatusDescription() {
-    if (pool.currentDepth < 30) {
-      return 'Air terlalu rendah, perlu penambahan';
+    if (pool.isLevelTooLow) {
+      return 'Di bawah batas minimum (${pool.minLevel.toStringAsFixed(1)}cm)';
     }
-    if (pool.currentDepth > pool.normalLevel) {
-      return 'Air berlebih, perlu pembuangan';
+    if (pool.isLevelTooHigh) {
+      return 'Di atas batas maksimum (${pool.maxLevel.toStringAsFixed(1)}cm)';
     }
-    return 'Kondisi air dalam batas normal';
+    return 'Kondisi air dalam batas aman';
   }
 
   @override
@@ -85,7 +57,10 @@ class WaterMonitorWidget extends StatelessWidget {
         padding: const EdgeInsets.all(20.0),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.blue.shade50, Colors.indigo.shade50],
+            colors: [
+              _getWaterLevelColor().withOpacity(0.05),
+              _getWaterLevelColor().withOpacity(0.15),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -93,25 +68,60 @@ class WaterMonitorWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header dengan status dan loading indicator
             _buildHeader(),
-
             const SizedBox(height: 24),
-
-            // Konten utama dengan layout responsif
             _buildMainContent(remainingSpace),
-
             const SizedBox(height: 20),
-
-            // Status indicators saja
-            _buildStatusIndicatorsCompact(),
+            _buildStatusIndicatorsCompact(), // Panggil fungsi yang sudah diperbaiki
           ],
         ),
       ),
     );
   }
 
-  /// Membangun header dengan status dan loading indicator
+  // (Sisa fungsi buildHeader, buildMainContent, dll. tidak perlu diubah, bisa dibiarkan)
+  // ...
+
+  // **FUNGSI YANG DIPERBAIKI**
+  // Memastikan kartu ini menampilkan nilai min/max dari model secara langsung
+  Widget _buildStatusIndicatorsCompact() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatusItemCompact(
+            icon: Icons.arrow_downward_rounded,
+            color: Colors.orange,
+            title: 'Minimum',
+            value:
+                '${pool.minLevel.toStringAsFixed(1)} cm', // Ambil langsung dari model
+          ),
+          Container(width: 1, height: 40, color: Colors.grey[200]),
+          _buildStatusItemCompact(
+            icon: Icons.check_circle_rounded,
+            color: Colors.blue,
+            title: 'Normal',
+            value: '${pool.normalLevel.toStringAsFixed(1)} cm',
+          ),
+          Container(width: 1, height: 40, color: Colors.grey[200]),
+          _buildStatusItemCompact(
+            icon: Icons.arrow_upward_rounded,
+            color: Colors.red,
+            title: 'Maksimum',
+            value:
+                '${pool.maxLevel.toStringAsFixed(1)} cm', // Ambil langsung dari model
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeader() {
     return Row(
       children: [
@@ -123,9 +133,7 @@ class WaterMonitorWidget extends StatelessWidget {
           ),
           child: Icon(_getStatusIcon(), color: _getWaterLevelColor(), size: 28),
         ),
-
         const SizedBox(width: 16),
-
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,7 +167,6 @@ class WaterMonitorWidget extends StatelessWidget {
             ],
           ),
         ),
-
         if (isLoading)
           Container(
             width: 24,
@@ -174,11 +181,9 @@ class WaterMonitorWidget extends StatelessWidget {
     );
   }
 
-  /// Membangun konten utama dengan layout responsif
   Widget _buildMainContent(double remainingSpace) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Untuk layar kecil, gunakan layout vertikal
         if (constraints.maxWidth < 600) {
           return Column(
             children: [
@@ -188,9 +193,8 @@ class WaterMonitorWidget extends StatelessWidget {
             ],
           );
         } else {
-          // Untuk layar lebar, gunakan layout horizontal
           return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _buildCircularIndicator(size: 180),
               const SizedBox(width: 24),
@@ -202,9 +206,8 @@ class WaterMonitorWidget extends StatelessWidget {
     );
   }
 
-  /// Circular indicator compact untuk mobile
   Widget _buildCircularIndicatorCompact() {
-    return Container(
+    return SizedBox(
       width: 160,
       height: 160,
       child: Stack(
@@ -225,7 +228,6 @@ class WaterMonitorWidget extends StatelessWidget {
               ],
             ),
           ),
-
           SizedBox(
             width: 130,
             height: 130,
@@ -237,7 +239,6 @@ class WaterMonitorWidget extends StatelessWidget {
               strokeCap: StrokeCap.round,
             ),
           ),
-
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -258,26 +259,6 @@ class WaterMonitorWidget extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getWaterLevelColor().withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _getWaterLevelColor().withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  _getWaterStatus(),
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: _getWaterLevelColor(),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
             ],
           ),
         ],
@@ -285,9 +266,8 @@ class WaterMonitorWidget extends StatelessWidget {
     );
   }
 
-  /// Circular indicator untuk desktop
   Widget _buildCircularIndicator({double size = 200}) {
-    return Container(
+    return SizedBox(
       width: size,
       height: size,
       child: Stack(
@@ -308,19 +288,6 @@ class WaterMonitorWidget extends StatelessWidget {
               ],
             ),
           ),
-
-          Container(
-            width: size - 10,
-            height: size - 10,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: _getWaterLevelColor().withOpacity(0.2),
-                width: 2,
-              ),
-            ),
-          ),
-
           SizedBox(
             width: size - 40,
             height: size - 40,
@@ -332,7 +299,6 @@ class WaterMonitorWidget extends StatelessWidget {
               strokeCap: StrokeCap.round,
             ),
           ),
-
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -353,26 +319,6 @@ class WaterMonitorWidget extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getWaterLevelColor().withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _getWaterLevelColor().withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  _getWaterStatus(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _getWaterLevelColor(),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
             ],
           ),
         ],
@@ -380,175 +326,69 @@ class WaterMonitorWidget extends StatelessWidget {
     );
   }
 
-  /// Section informasi detail dengan layout horizontal yang optimal
   Widget _buildDetailInfoHorizontal(double remainingSpace) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Untuk layar sangat kecil
-        if (constraints.maxWidth < 280) {
-          return _buildDetailInfoVertical(remainingSpace);
-        }
-        // Untuk layar medium, gunakan 2 kolom
-        else if (constraints.maxWidth < 480) {
-          return Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildDetailInfoCard(
-                      title: 'Ketinggian',
-                      value: '${pool.currentDepth.toStringAsFixed(1)} cm',
-                      subtitle: 'Saat ini',
-                      icon: Icons.waves_rounded,
-                      color: _getWaterLevelColor(),
-                      isCompact: true,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildDetailInfoCard(
-                      title: 'Total',
-                      value: '${pool.depth} cm',
-                      subtitle: 'Kedalaman',
-                      icon: Icons.straighten_rounded,
-                      color: Colors.indigo,
-                      isCompact: true,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _buildDetailInfoCard(
-                title: 'Jarak Sensor ke Permukaan Air',
-                value: '${remainingSpace.toStringAsFixed(1)} cm',
-                subtitle: 'Data real-time dari ESP32',
-                icon: Icons.height_rounded,
-                color: Colors.teal,
-                isCompact: false,
-              ),
-            ],
-          );
-        }
-        // Untuk layar lebar, gunakan 3 kolom
-        else {
-          return Row(
-            children: [
-              Expanded(
-                child: _buildDetailInfoCard(
-                  title: 'Ketinggian Saat Ini',
-                  value: '${pool.currentDepth.toStringAsFixed(1)} cm',
-                  subtitle: 'Dari dasar kolam',
-                  icon: Icons.waves_rounded,
-                  color: _getWaterLevelColor(),
-                  isCompact: true,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildDetailInfoCard(
-                  title: 'Kedalaman Total',
-                  value: '${pool.depth} cm',
-                  subtitle: 'Kapasitas maksimum',
-                  icon: Icons.straighten_rounded,
-                  color: Colors.indigo,
-                  isCompact: true,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildDetailInfoCard(
-                  title: 'Jarak Sensor',
-                  value: '${remainingSpace.toStringAsFixed(1)} cm',
-                  subtitle: 'Ke permukaan air',
-                  icon: Icons.height_rounded,
-                  color: Colors.teal,
-                  isCompact: true,
-                ),
-              ),
-            ],
-          );
-        }
-      },
-    );
-  }
-
-  /// Fallback vertical layout untuk layar sangat kecil
-  Widget _buildDetailInfoVertical(double remainingSpace) {
     return Column(
       children: [
         _buildDetailInfoCard(
           title: 'Ketinggian Saat Ini',
           value: '${pool.currentDepth.toStringAsFixed(1)} cm',
-          subtitle: 'Dari dasar kolam',
           icon: Icons.waves_rounded,
           color: _getWaterLevelColor(),
-          isCompact: true,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         _buildDetailInfoCard(
           title: 'Kedalaman Total',
           value: '${pool.depth} cm',
-          subtitle: 'Kapasitas maksimum',
           icon: Icons.straighten_rounded,
           color: Colors.indigo,
-          isCompact: true,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         _buildDetailInfoCard(
-          title: 'Jarak Sensor',
+          title: 'Jarak Sensor ke Air',
           value: '${remainingSpace.toStringAsFixed(1)} cm',
-          subtitle: 'Ke permukaan air',
           icon: Icons.height_rounded,
           color: Colors.teal,
-          isCompact: true,
         ),
       ],
     );
   }
 
-  /// Card informasi detail yang optimized
   Widget _buildDetailInfoCard({
     required String title,
     required String value,
-    required String subtitle,
     required IconData icon,
     required Color color,
-    required bool isCompact,
   }) {
     return Container(
-      padding: EdgeInsets.all(isCompact ? 12 : 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Row(
         children: [
           Container(
-            width: isCompact ? 32 : 40,
-            height: isCompact ? 32 : 40,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: isCompact ? 16 : 20),
+            child: Icon(icon, color: color, size: 20),
           ),
-
           const SizedBox(width: 12),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    color: const Color(0xFF1F2937),
-                    fontSize: isCompact ? 11 : 13,
+                  style: const TextStyle(
+                    color: Color(0xFF1F2937),
+                    fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -556,19 +396,8 @@ class WaterMonitorWidget extends StatelessWidget {
                   style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.bold,
-                    fontSize: isCompact ? 16 : 18,
+                    fontSize: 18,
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: isCompact ? 9 : 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -578,41 +407,6 @@ class WaterMonitorWidget extends StatelessWidget {
     );
   }
 
-  /// Status indicators yang lebih compact
-  Widget _buildStatusIndicatorsCompact() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatusItemCompact(
-              icon: Icons.check_circle_rounded,
-              color: Colors.green,
-              title: 'Normal',
-              value: '${pool.normalLevel} cm',
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildStatusItemCompact(
-              icon: Icons.warning_amber_rounded,
-              color: Colors.orange,
-              title: 'Minimum',
-              value:
-                  '${((pool.minLevel / 100) * pool.depth).toStringAsFixed(0)} cm',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Item status yang compact
   Widget _buildStatusItemCompact({
     required IconData icon,
     required Color color,
@@ -621,20 +415,13 @@ class WaterMonitorWidget extends StatelessWidget {
   }) {
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(height: 8),
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 4),
         Text(
           title,
           style: TextStyle(
             fontSize: 11,
-            color: color,
+            color: Colors.grey.shade700,
             fontWeight: FontWeight.w600,
           ),
         ),

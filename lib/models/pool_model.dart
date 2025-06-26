@@ -1,13 +1,14 @@
 // lib/models/pool_model.dart
+// VERSI PERBAIKAN FINAL - min/max sekarang dalam CM
 import 'dart:core';
 
 class Pool {
   final String name;
-  final double depth;
-  final double normalLevel;
-  final double maxLevel;
-  final double minLevel;
-  double currentDepth;
+  final double depth; // Kedalaman total dalam cm
+  final double normalLevel; // Target normal dalam cm
+  final double maxLevel; // Batas MAKSIMUM dalam cm (bukan persen)
+  final double minLevel; // Batas MINIMUM dalam cm (bukan persen)
+  double currentDepth; // Ketinggian air saat ini dalam cm
 
   Pool({
     required this.name,
@@ -19,41 +20,37 @@ class Pool {
   });
 
   // Getter methods untuk status level air
+  // Logikanya sekarang membandingkan cm dengan cm secara langsung
   bool get isLevelTooLow {
-    final minDepthCm = (minLevel / 100) * depth;
-    return currentDepth < minDepthCm;
+    // Ketinggian air lebih rendah dari batas minimum yang ditentukan dalam cm
+    return currentDepth < minLevel;
   }
 
   bool get isLevelTooHigh {
-    final maxDepthCm = (maxLevel / 100) * depth;
-    return currentDepth > maxDepthCm;
+    // Ketinggian air lebih tinggi dari batas maksimum yang ditentukan dalam cm
+    return currentDepth > maxLevel;
   }
 
   bool get isLevelNormal {
-    final minDepthCm = (minLevel / 100) * depth;
-    final maxDepthCm = (maxLevel / 100) * depth;
-    return currentDepth >= minDepthCm && currentDepth <= maxDepthCm;
+    // Kondisi aman adalah ketika air berada di antara batas min dan max
+    return !isLevelTooLow && !isLevelTooHigh;
   }
 
-  // Menghitung persentase level air saat ini
+  // Menghitung persentase level air saat ini untuk ditampilkan di UI
   double get currentLevelPercent {
+    if (depth == 0) return 0; // Hindari pembagian dengan nol
     return (currentDepth / depth * 100).clamp(0.0, 100.0);
   }
 
   // Status level dalam string
   String get levelStatus {
     if (isLevelTooLow) return 'Rendah';
-    if (isLevelTooHigh) return 'Berlebihan';
+    if (isLevelTooHigh) return 'Berlebih';
     return 'Normal';
   }
 
-  // Warna untuk status level
-  String get levelStatusColor {
-    if (isLevelTooLow) return 'red';
-    if (isLevelTooHigh) return 'orange';
-    return 'green';
-  }
-
+  // (Sisa kode seperti copyWith, toMap, dll. tetap sama)
+  // ...
   Pool copyWith({
     String? name,
     double? depth,
