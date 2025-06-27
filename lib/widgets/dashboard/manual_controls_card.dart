@@ -1,34 +1,38 @@
-// ignore_for_file: unused_element, unused_import, deprecated_member_use
-
+// lib/widgets/dashboard/manual_controls_card.dart
+// VERSI PERBAIKAN - Menggunakan Tombol, bukan switch
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../../models/notification_model.dart';
 
-class ManualControlsCard extends StatefulWidget {
-  final String valveStatus;
-  final String drainStatus;
-  final Function(String) onValveStatusChanged;
-  final Function(String) onDrainStatusChanged;
+class ManualControlsCard extends StatelessWidget {
+  final bool isManualMode;
+  final ValveStatus valveStatus;
+  final DrainStatus drainStatus;
+  final Function(bool) onManualModeChanged;
+  final Function(ValveStatus) onValveChanged;
+  final Function(DrainStatus) onDrainChanged;
 
   const ManualControlsCard({
     super.key,
+    required this.isManualMode,
     required this.valveStatus,
     required this.drainStatus,
-    required this.onValveStatusChanged,
-    required this.onDrainStatusChanged,
+    required this.onManualModeChanged,
+    required this.onValveChanged,
+    required this.onDrainChanged,
   });
-
-  @override
-  State<ManualControlsCard> createState() => _ManualControlsCardState();
-}
-
-class _ManualControlsCardState extends State<ManualControlsCard> {
-  bool _manualMode = false;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 2.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: isManualMode ? Colors.amber[50] : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isManualMode ? Colors.amber.shade400 : Colors.transparent,
+          width: 1.5,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -36,7 +40,7 @@ class _ManualControlsCardState extends State<ManualControlsCard> {
           children: [
             Row(
               children: [
-                const Icon(Icons.settings, size: 20),
+                const Icon(Icons.pan_tool_rounded, size: 20),
                 const SizedBox(width: 8),
                 const Text(
                   'Kontrol Manual',
@@ -44,165 +48,134 @@ class _ManualControlsCardState extends State<ManualControlsCard> {
                 ),
                 const Spacer(),
                 Switch(
-                  value: _manualMode,
-                  onChanged: (value) {
-                    setState(() {
-                      _manualMode = value;
-                    });
-                    _showSuccessSnackBar(
-                      'Mode ${value ? 'Manual' : 'Otomatis'} diaktifkan',
-                    );
-                  },
+                  value: isManualMode,
+                  onChanged: onManualModeChanged,
+                  activeColor: Colors.amber[700],
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            if (!_manualMode)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info, color: Colors.blue, size: 16),
-                    SizedBox(width: 8),
-                    Text(
-                      'Sistem dalam mode otomatis',
-                      style: TextStyle(color: Colors.blue, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            if (_manualMode) ...[
-              _buildControlToggle(
-                icon: Icons.water_drop,
-                label: 'Kran Utama',
-                status: widget.valveStatus,
-                onChanged: widget.onValveStatusChanged,
-                openColor: Colors.green,
-                closedColor: Colors.red,
-              ),
-              const SizedBox(height: 12),
-              _buildControlToggle(
-                icon: Icons.flash_on,
-                label: 'Kran Pembuangan',
-                status: widget.drainStatus,
-                onChanged: widget.onDrainStatusChanged,
-                openColor: Colors.orange,
-                closedColor: Colors.green,
-              ),
-              const SizedBox(height: 16),
-              _buildResetButton(),
-            ],
+            const SizedBox(height: 12),
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 300),
+              firstChild: _buildAutoModeIndicator(),
+              secondChild: _buildManualControls(),
+              crossFadeState: isManualMode
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildControlToggle({
-    required IconData icon,
-    required String label,
-    required String status,
-    required Function(String) onChanged,
-    required Color openColor,
-    required Color closedColor,
-  }) {
-    final isOpen = status == 'open';
-
+  Widget _buildAutoModeIndicator() {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: (isOpen ? openColor : closedColor).withOpacity(0.1),
+        color: Colors.blue.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: (isOpen ? openColor : closedColor).withOpacity(0.3),
-        ),
       ),
-      child: Row(
+      child: const Row(
         children: [
-          Icon(icon, color: isOpen ? openColor : closedColor, size: 20),
-          const SizedBox(width: 12),
+          Icon(Icons.info_outline, color: Colors.blue, size: 20),
+          SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  isOpen ? 'TERBUKA' : 'TERTUTUP',
-                  style: TextStyle(
-                    color: isOpen ? openColor : closedColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+            child: Text(
+              'Sistem dalam mode otomatis. Aktifkan switch untuk kontrol manual.',
+              style: TextStyle(color: Colors.blue, fontSize: 13),
             ),
-          ),
-          Switch(
-            value: isOpen,
-            onChanged: (value) {
-              final newStatus = value ? 'open' : 'closed';
-              onChanged(newStatus);
-
-              _showSuccessSnackBar(
-                '$label ${value ? 'dibuka' : 'ditutup'} secara manual',
-              );
-            },
-            activeColor: openColor,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildResetButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () {
-          // Reset kedua valve ke closed
-          widget.onValveStatusChanged('closed');
-          widget.onDrainStatusChanged('closed');
-
-          _showSuccessSnackBar('Sistem direset - Semua kran ditutup');
-        },
-        icon: const Icon(Icons.refresh, size: 18),
-        label: const Text('Reset Sistem'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.purple,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  Widget _buildManualControls() {
+    return Column(
+      children: [
+        _buildControlRow(
+          label: "Kran Utama",
+          icon: Icons.water_drop,
+          isOpen: valveStatus == ValveStatus.open,
+          onOpen: () => onValveChanged(ValveStatus.open),
+          onClose: () => onValveChanged(ValveStatus.closed),
         ),
-      ),
+        const SizedBox(height: 12),
+        _buildControlRow(
+          label: "Pembuangan",
+          icon: Icons.output_rounded,
+          isOpen: drainStatus == DrainStatus.open,
+          onOpen: () => onDrainChanged(DrainStatus.open),
+          onClose: () => onDrainChanged(DrainStatus.closed),
+        ),
+      ],
     );
   }
 
-  void _showSuccessSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Expanded(child: Text(message)),
-            ],
+  Widget _buildControlRow({
+    required String label,
+    required IconData icon,
+    required bool isOpen,
+    required VoidCallback onOpen,
+    required VoidCallback onClose,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.grey.shade700, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
-    }
+
+          // Tombol Buka
+          ElevatedButton(
+            onPressed: onOpen,
+            style: ElevatedButton.styleFrom(
+              foregroundColor: isOpen ? Colors.white : Colors.green.shade800,
+              backgroundColor: isOpen
+                  ? Colors.green.shade400
+                  : Colors.green.shade50,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  bottomLeft: Radius.circular(8),
+                ),
+              ),
+              elevation: isOpen ? 2 : 0,
+            ),
+            child: const Text('Buka'),
+          ),
+
+          // Tombol Tutup
+          ElevatedButton(
+            onPressed: onClose,
+            style: ElevatedButton.styleFrom(
+              foregroundColor: !isOpen ? Colors.white : Colors.red.shade800,
+              backgroundColor: !isOpen
+                  ? Colors.red.shade400
+                  : Colors.red.shade50,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(8),
+                  bottomRight: Radius.circular(8),
+                ),
+              ),
+              elevation: !isOpen ? 2 : 0,
+            ),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
   }
 }
