@@ -1,9 +1,6 @@
 // lib/providers/pool_provider.dart
-// VERSI PERBAIKAN FINAL - FIX DEFINISI FUNGSI
-// ignore_for_file: unused_import, prefer_final_fields
-
+// VERSI PERBAIKAN FINAL - Mengembalikan semua fungsi yang hilang
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:smart_farming/utils/logger.dart';
@@ -14,16 +11,18 @@ import '../models/notification_model.dart';
 class PoolProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
+  // --- STATE ---
   Map<String, Pool> _pools = {};
   String _selectedPoolKey = '';
   ValveStatus _valveStatus = ValveStatus.closed;
   DrainStatus _drainStatus = DrainStatus.closed;
   bool _isLoading = false;
   bool _isInitialized = false;
-
+  bool _isManualMode = false;
   Timer? _safetyTimer;
   final Duration _maxDuration = const Duration(minutes: 15);
 
+  // --- GETTERS ---
   Map<String, Pool> get pools => _pools;
   String get selectedPoolKey => _selectedPoolKey;
   Pool? get currentPool => _pools[_selectedPoolKey];
@@ -34,7 +33,11 @@ class PoolProvider with ChangeNotifier {
   bool get hasValidSelection =>
       _selectedPoolKey.isNotEmpty && _pools.containsKey(_selectedPoolKey);
   bool get isEmpty => _pools.isEmpty;
+  bool get isManualMode => _isManualMode;
 
+  // --- DATABASE & INITIALIZATION ---
+
+  // FIX: FUNGSI YANG HILANG DIKEMBALIKAN
   Future<void> loadPools() async {
     _isLoading = true;
     notifyListeners();
@@ -57,11 +60,64 @@ class PoolProvider with ChangeNotifier {
     }
   }
 
+  // --- LOGIC & CONTROL ---
+  void setManualMode(
+    bool isManual, {
+    required Function(NotificationItem) onNotification,
+  }) {
+    _isManualMode = isManual;
+    Logger.d("Mode manual diubah menjadi: $_isManualMode");
+    if (!_isManualMode) {
+      onNotification(
+        _createNotification("Sistem kembali ke mode otomatis.", "info"),
+      );
+      checkWaterLevelAndControl(
+        onNotification: onNotification,
+        isSafetyTimerEnabled: true,
+      );
+    } else {
+      onNotification(
+        _createNotification("Sistem beralih ke mode kontrol manual.", "info"),
+      );
+    }
+    notifyListeners();
+  }
+
+  void manualSetValve(
+    ValveStatus status, {
+    required Function(NotificationItem) onNotification,
+  }) {
+    if (!_isManualMode) return;
+    _valveStatus = status;
+    onNotification(
+      _createNotification(
+        "Kran utama diatur manual ke: ${status.name}",
+        "info",
+      ),
+    );
+    notifyListeners();
+  }
+
+  void manualSetDrain(
+    DrainStatus status, {
+    required Function(NotificationItem) onNotification,
+  }) {
+    if (!_isManualMode) return;
+    _drainStatus = status;
+    onNotification(
+      _createNotification(
+        "Pembuangan diatur manual ke: ${status.name}",
+        "info",
+      ),
+    );
+    notifyListeners();
+  }
+
   void checkWaterLevelAndControl({
     required Function(NotificationItem) onNotification,
     required bool isSafetyTimerEnabled,
   }) {
-    if (!hasValidSelection) return;
+    if (_isManualMode || !hasValidSelection) return;
     final pool = currentPool!;
     ValveStatus previousValveStatus = _valveStatus;
     DrainStatus previousDrainStatus = _drainStatus;
@@ -91,7 +147,6 @@ class PoolProvider with ChangeNotifier {
         _valveStatus = ValveStatus.closed;
         _drainStatus = DrainStatus.closed;
         notifyListeners();
-        Logger.e("SAFETY TIMEOUT: All valves closed.");
       });
     }
 
@@ -127,23 +182,18 @@ class PoolProvider with ChangeNotifier {
 
   void updateCurrentWaterLevel({
     required double distanceToWater,
-    required Function(NotificationItem) onNotification, // Ubah tipe ini
+    required Function(NotificationItem) onNotification,
     required bool isSafetyTimerEnabled,
   }) {
-    if (!hasValidSelection) return;
-
-    final pool = currentPool!;
-    final tankDepth = pool.depth;
-    final currentWaterDepth = tankDepth - distanceToWater;
-
-    _pools[_selectedPoolKey] = pool.copyWith(currentDepth: currentWaterDepth);
-
-    checkWaterLevelAndControl(
-      onNotification: onNotification,
-      isSafetyTimerEnabled: isSafetyTimerEnabled,
-    );
-
-    notifyListeners();
+    if (hasValidSelection) {
+      final pool = currentPool!;
+      pool.currentDepth = (pool.depth - distanceToWater).clamp(0.0, pool.depth);
+      checkWaterLevelAndControl(
+        onNotification: onNotification,
+        isSafetyTimerEnabled: isSafetyTimerEnabled,
+      );
+      notifyListeners();
+    }
   }
 
   void simulateWaterLevelChange({
@@ -161,11 +211,11 @@ class PoolProvider with ChangeNotifier {
         onNotification: onNotification,
         isSafetyTimerEnabled: isSafetyTimerEnabled,
       );
-      Logger.d("Simulated water level: ${pool.currentDepth} cm");
       notifyListeners();
     }
   }
 
+  // FIX: FUNGSI-FUNGSI CRUD DIKEMBALIKAN
   Future<bool> addPool(String key, Pool pool) async {
     try {
       if (_pools.containsKey(key)) return false;
@@ -209,7 +259,6 @@ class PoolProvider with ChangeNotifier {
   void selectPool(String key) {
     if (_pools.containsKey(key)) {
       _selectedPoolKey = key;
-      // Panggil checkWaterLevelAndControl tanpa notifikasi saat hanya ganti kolam
       checkWaterLevelAndControl(
         onNotification: (_) {},
         isSafetyTimerEnabled: false,
@@ -218,6 +267,7 @@ class PoolProvider with ChangeNotifier {
     }
   }
 
+  // Helper
   NotificationItem _createNotification(String message, String type) {
     return NotificationItem(
       id: DateTime.now().millisecondsSinceEpoch.toString(),

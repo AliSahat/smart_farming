@@ -1,31 +1,25 @@
 // lib/screens/dashboard_screen.dart
-// VERSI PERBAIKAN FINAL (LAGI) - SEMUA ERROR DIPERBAIKI
+// VERSI PERBAIKAN FINAL - Menghapus kontrol simulasi
 // ignore_for_file: prefer_final_fields, unused_field, unused_element, unused_import
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:smart_farming/helper/notification_service.dart';
 import 'package:smart_farming/models/esp_water_data.dart';
 import 'package:smart_farming/services/repository/esp_repository.dart';
-import 'package:smart_farming/utils/logger.dart' hide Logger;
-import 'package:smart_farming/widgets/dashboard/manual_controls_card.dart';
-import 'package:smart_farming/widgets/dashboard/no_pool_state.dart';
-import 'package:smart_farming/widgets/permissions/notification_permission_dialog.dart';
+import 'package:smart_farming/utils/logger.dart';
 import '../providers/pool_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/app_settings_provider.dart';
+import '../models/notification_model.dart';
 import '../models/pool_model.dart';
 import '../screens/add_pool_screen.dart';
-
 import '../widgets/dashboard/header_widget.dart';
 import '../widgets/dashboard/water_monitor_widget.dart';
 import '../widgets/dashboard/pool_selector_widget.dart';
 import '../widgets/dashboard/pool_settings_widget.dart';
 import '../widgets/dashboard/control_status_card.dart';
-import 'package:logger/logger.dart';
+import '../widgets/dashboard/manual_controls_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -38,14 +32,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _showSettings = false;
   ESPWaterData? _latestWaterData;
   Timer? _dataRefreshTimer;
-  late NotificationService _notificationService;
 
   @override
   void initState() {
     super.initState();
-    Logger().i("🏁 Dashboard screen initializing");
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeServices();
       _loadInitialData();
     });
   }
@@ -56,75 +47,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  void _initializeServices() {
-    Logger().i("🔧 Initializing dashboard services");
-    final notificationProvider = Provider.of<NotificationProvider>(
-      context,
-      listen: false,
-    );
-    _notificationService = NotificationService(notificationProvider);
-    Logger().i("✅ Services initialized successfully");
-  }
-
   Future<void> _loadInitialData() async {
-    Logger().i("📊 Loading initial pool data");
     final poolProvider = Provider.of<PoolProvider>(context, listen: false);
     await poolProvider.loadPools();
     if (mounted && poolProvider.pools.isNotEmpty) {
-      Logger().i(
-        "🏊 Found ${poolProvider.pools.length} pools, fetching water data",
-      );
       _fetchWaterData();
       _setupDataRefresh();
-    } else {
-      Logger().i("⚠️ No pools found or widget unmounted");
     }
   }
 
   Future<void> _fetchWaterData() async {
-    Logger().d("📡 Fetching water sensor data");
     final poolProvider = Provider.of<PoolProvider>(context, listen: false);
     final settingsProvider = Provider.of<AppSettingsProvider>(
       context,
       listen: false,
     );
-
-    if (!mounted || poolProvider.isEmpty) {
-      Logger().d("❌ Fetch aborted: widget unmounted or no pools");
-      return;
-    }
+    if (!mounted || poolProvider.isEmpty) return;
 
     final espRepository = ESPRepository();
     try {
-      Logger().d("🔍 Requesting latest water distance data");
       final data = await espRepository.getLatestWaterDistance();
       if (mounted) {
         setState(() => _latestWaterData = data);
         if (data.isSuccess) {
-          Logger().i("✅ Water data received: ${data.distanceToWater}cm");
           poolProvider.updateCurrentWaterLevel(
             distanceToWater: data.distanceToWater,
-            onNotification: _notificationService.addNotificationFromItem,
-            isSafetyTimerEnabled:
-                settingsProvider.isSafetyTimerEnabled ?? false,
+            onNotification: _addNotification,
+            isSafetyTimerEnabled: settingsProvider.isSafetyTimerEnabled,
           );
         } else {
-          Logger().e("❌ Sensor error: ${data.errorMessage}");
-          _notificationService.addSystemNotification(
+          _addNotificationHelper(
             'Sensor offline: ${data.errorMessage}',
             'error',
-            poolName: poolProvider.currentPool?.name,
           );
         }
       }
     } catch (e) {
-      Logger().e("💥 Exception while fetching water data", error: e);
       if (mounted) {
-        _notificationService.addSystemNotification(
-          'Error koneksi ke sensor: $e',
-          'error',
-          poolName: poolProvider.currentPool?.name,
-        );
+        _addNotificationHelper('Error koneksi ke sensor: $e', 'error');
       }
     }
   }
@@ -136,6 +96,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  void _addNotification(NotificationItem notification) {
+    Provider.of<NotificationProvider>(
+      context,
+      listen: false,
+    ).addNotification(notification);
+  }
+
+  void _addNotificationHelper(String message, String type) {
+    final poolName = Provider.of<PoolProvider>(
+      context,
+      listen: false,
+    ).currentPool?.name;
+    _addNotification(
+      NotificationItem(
+        id: DateTime.now().toString(),
+        title: type == 'error' ? 'Error Sistem' : 'Info Sistem',
+        message: message,
+        type: type,
+        timestamp: DateTime.now(),
+        poolName: poolName,
+      ),
+    );
+  }
+
   void _onPoolSelected(String poolKey) {
     Provider.of<PoolProvider>(context, listen: false).selectPool(poolKey);
     _fetchWaterData();
@@ -143,13 +127,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context,
       listen: false,
     ).pools[poolKey]?.name;
-    _notificationService.addSystemNotification(
-      'Beralih ke "$poolName"',
-      'info',
-    );
+    _addNotificationHelper('Beralih ke "$poolName"', 'info');
   }
 
-  void _onPoolAdded(String key, Pool pool) async {
+  Future<void> _onPoolAdded(String key, Pool pool) async {
     final poolProvider = Provider.of<PoolProvider>(context, listen: false);
     if (await poolProvider.addPool(key, pool)) {
       _onPoolSelected(key);
@@ -157,7 +138,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _onPoolSettingsChanged(Pool newPool) async {
+  Future<void> _onPoolSettingsChanged(Pool newPool) async {
     final poolProvider = Provider.of<PoolProvider>(context, listen: false);
     await poolProvider.updatePool(poolProvider.selectedPoolKey, newPool);
     _fetchWaterData();
@@ -169,55 +150,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (context) => AddPoolScreen(onPoolAdded: _onPoolAdded),
     ),
   );
-  void _testNotifications() async {
-    // First check permission status
-    final status = await Permission.notification.status;
-    debugPrint(
-      "Notification permission status: $status",
-    ); // See if permission is granted
-
-    if (!status.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Notifikasi tidak dapat ditampilkan: Izin tidak diberikan',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-      // Request permission
-      await NotificationPermissionHelper.checkAndRequestPermission(context);
-      return;
-    }
-
-    // Continue with sending notification...
-    _notificationService.addSystemNotification(
-      'Ini adalah notifikasi uji coba sistem',
-      'info',
-      poolName: Provider.of<PoolProvider>(
-        context,
-        listen: false,
-      ).currentPool?.name,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<PoolProvider>(
       builder: (context, poolProvider, child) {
-        if (!poolProvider.isInitialized) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (poolProvider.isEmpty) {
-          return Scaffold(
-            backgroundColor: const Color(0xFFF8FAFC),
-            body: NoPoolStateWidget(onAddPoolPressed: _navigateToAddPool),
-          );
-        }
-
+        if (!poolProvider.isInitialized)
+          return const Center(child: CircularProgressIndicator());
+        if (poolProvider.isEmpty) return _buildNoPoolState();
         return _buildDashboard(poolProvider);
       },
     );
@@ -226,7 +166,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildDashboard(PoolProvider poolProvider) {
     final currentPool = poolProvider.currentPool!;
     final waterLevelPercent = currentPool.currentLevelPercent;
-    final settingsProvider = Provider.of<AppSettingsProvider>(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -257,6 +196,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
               normalLevel: currentPool.normalLevel,
             ),
             const SizedBox(height: 20),
+            // Manual Controls Card
+            ManualControlsCard(
+              isManualMode: poolProvider.isManualMode,
+              valveStatus: poolProvider.valveStatus,
+              drainStatus: poolProvider.drainStatus,
+              onManualModeChanged: (isActive) {
+                poolProvider.setManualMode(
+                  isActive,
+                  onNotification: _addNotification,
+                );
+              },
+              onValveChanged: (status) {
+                poolProvider.manualSetValve(
+                  status,
+                  onNotification: _addNotification,
+                );
+              },
+              onDrainChanged: (status) {
+                poolProvider.manualSetDrain(
+                  status,
+                  onNotification: _addNotification,
+                );
+              },
+            ),
+            const SizedBox(height: 20),
             if (_showSettings) ...[
               PoolSettingsWidget(
                 pool: currentPool,
@@ -268,22 +232,72 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () => setState(() => _showSettings = !_showSettings),
                 icon: Icon(
-                  _showSettings ? Icons.expand_less : Icons.expand_more,
+                  _showSettings ? Icons.visibility_off : Icons.settings,
+                  size: 18,
                 ),
                 label: Text(
                   _showSettings
                       ? 'Sembunyikan Pengaturan'
                       : 'Tampilkan Pengaturan',
                 ),
+                onPressed: () => setState(() => _showSettings = !_showSettings),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.blueGrey,
+                  side: BorderSide(color: Colors.blueGrey.withOpacity(0.3)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 20),
-            ManualControlCard(
-              isAutoModeEnabled: settingsProvider.isAutoModeEnabled ?? false,
-              poolName: currentPool.name,
-              notificationService: _notificationService,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoPoolState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.pool_outlined, size: 80, color: Colors.blue[200]),
+            const SizedBox(height: 24),
+            const Text(
+              'Belum Ada Kolam',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Tambahkan kolam atau wadah pertama Anda untuk memulai monitoring.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: _navigateToAddPool,
+              icon: const Icon(Icons.add, size: 20),
+              label: const Text('Tambah Kolam/Wadah Baru'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
             ),
           ],
         ),
