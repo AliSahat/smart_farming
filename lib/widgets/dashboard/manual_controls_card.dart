@@ -2,19 +2,16 @@
 
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
-import 'package:smart_farming/helper/notification_service.dart';
 import 'package:smart_farming/screens/service_layer/manual_control_service.dart';
 
 class ManualControlCard extends StatefulWidget {
   final bool isAutoModeEnabled;
   final String? poolName;
-  final NotificationService notificationService;
 
   const ManualControlCard({
     super.key,
     required this.isAutoModeEnabled,
     required this.poolName,
-    required this.notificationService,
   });
 
   @override
@@ -33,7 +30,7 @@ class _ManualControlCardState extends State<ManualControlCard> {
   @override
   void initState() {
     super.initState();
-    _controlService = ManualControlService(widget.notificationService);
+
     Logger().i("🏁 Manual controls initialized for pool: ${widget.poolName}");
   }
 
@@ -58,7 +55,6 @@ class _ManualControlCardState extends State<ManualControlCard> {
             const SizedBox(height: 16),
             _buildEmergencyStop(),
             const SizedBox(height: 8),
-            _buildTestButton(),
           ],
         ),
       ),
@@ -179,23 +175,6 @@ class _ManualControlCardState extends State<ManualControlCard> {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.red,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTestButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: _testValveNotifications,
-        icon: const Icon(Icons.notifications_active, size: 20),
-        label: const Text('Test Notifikasi Valve'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.purple[100],
-          foregroundColor: Colors.purple[700],
           padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
@@ -368,12 +347,5 @@ class _ManualControlCardState extends State<ManualControlCard> {
       _isFillModeActive = result['isFillModeActive']!;
       _isDrainModeActive = result['isDrainModeActive']!;
     });
-  }
-
-  void _testValveNotifications() {
-    Logger().i("🧪 Starting valve notification tests for: ${widget.poolName}");
-    widget.notificationService.sendTestValveNotifications(
-      poolName: widget.poolName,
-    );
   }
 }

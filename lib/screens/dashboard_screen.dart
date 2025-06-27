@@ -283,7 +283,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ManualControlCard(
               isAutoModeEnabled: settingsProvider.isAutoModeEnabled ?? false,
               poolName: currentPool.name,
-              notificationService: _notificationService,
             ),
           ],
         ),
