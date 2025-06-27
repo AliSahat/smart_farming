@@ -1,184 +1,183 @@
 // ignore_for_file: unused_element, unused_import
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:logger/logger.dart';
+import 'package:smart_farming/helper/notification_service.dart';
+import 'package:smart_farming/screens/service_layer/manual_control_service.dart';
 
-class ManualControlsCard extends StatefulWidget {
-  final String valveStatus;
-  final String drainStatus;
-  final Function(String) onValveStatusChanged;
-  final Function(String) onDrainStatusChanged;
+class ManualControlCard extends StatefulWidget {
+  final bool isAutoModeEnabled;
+  final String? poolName;
+  final NotificationService notificationService;
 
-  const ManualControlsCard({
+  const ManualControlCard({
     super.key,
-    required this.valveStatus,
-    required this.drainStatus,
-    required this.onValveStatusChanged,
-    required this.onDrainStatusChanged,
+    required this.isAutoModeEnabled,
+    required this.poolName,
+    required this.notificationService,
   });
 
   @override
-  State<ManualControlsCard> createState() => _ManualControlsCardState();
+  State<ManualControlCard> createState() => _ManualControlCardState();
 }
 
-class _ManualControlsCardState extends State<ManualControlsCard> {
-  bool _manualMode = false;
+class _ManualControlCardState extends State<ManualControlCard> {
+  late final ManualControlService _controlService;
+
+  // Manual control states
+  bool _isPumpRunning = false;
+  bool _isValveOpen = false;
+  bool _isFillModeActive = false;
+  bool _isDrainModeActive = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controlService = ManualControlService(widget.notificationService);
+    Logger().i("🏁 Manual controls initialized for pool: ${widget.poolName}");
+  }
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 2.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      color: Colors.indigo[50],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.settings, size: 20),
-                const SizedBox(width: 8),
-                const Text(
-                  'Kontrol Manual',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                Switch(
-                  value: _manualMode,
-                  onChanged: (value) {
-                    setState(() {
-                      _manualMode = value;
-                    });
-                    _showSuccessSnackBar(
-                      'Mode ${value ? 'Manual' : 'Otomatis'} diaktifkan',
-                    );
-                  },
-                ),
-              ],
-            ),
+            _buildHeader(),
+            const SizedBox(height: 8),
+            _buildModeWarning(),
             const SizedBox(height: 16),
-            if (!_manualMode)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info, color: Colors.blue, size: 16),
-                    SizedBox(width: 8),
-                    Text(
-                      'Sistem dalam mode otomatis',
-                      style: TextStyle(color: Colors.blue, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            if (_manualMode) ...[
-              _buildControlToggle(
-                icon: Icons.water_drop,
-                label: 'Kran Utama',
-                status: widget.valveStatus,
-                onChanged: widget.onValveStatusChanged,
-                openColor: Colors.green,
-                closedColor: Colors.red,
-              ),
-              const SizedBox(height: 12),
-              _buildControlToggle(
-                icon: Icons.flash_on,
-                label: 'Kran Pembuangan',
-                status: widget.drainStatus,
-                onChanged: widget.onDrainStatusChanged,
-                openColor: Colors.orange,
-                closedColor: Colors.green,
-              ),
-              const SizedBox(height: 16),
-              _buildResetButton(),
-            ],
+            _buildManualControls(),
+            const SizedBox(height: 12),
+            _buildModeControls(),
+            const SizedBox(height: 16),
+            _buildEmergencyStop(),
+            const SizedBox(height: 8),
+            _buildTestButton(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildControlToggle({
-    required IconData icon,
-    required String label,
-    required String status,
-    required Function(String) onChanged,
-    required Color openColor,
-    required Color closedColor,
-  }) {
-    final isOpen = status == 'open';
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: (isOpen ? openColor : closedColor).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: (isOpen ? openColor : closedColor).withOpacity(0.3),
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        Icon(Icons.engineering, color: Colors.indigo[600], size: 24),
+        const SizedBox(width: 12),
+        const Text(
+          'Kontrol Manual',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: isOpen ? openColor : closedColor, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  isOpen ? 'TERBUKA' : 'TERTUTUP',
-                  style: TextStyle(
-                    color: isOpen ? openColor : closedColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: isOpen,
-            onChanged: (value) {
-              final newStatus = value ? 'open' : 'closed';
-              onChanged(newStatus);
-
-              _showSuccessSnackBar(
-                '$label ${value ? 'dibuka' : 'ditutup'} secara manual',
-              );
-            },
-            activeColor: openColor,
-          ),
-        ],
-      ),
+      ],
     );
   }
 
-  Widget _buildResetButton() {
+  Widget _buildModeWarning() {
+    if (widget.isAutoModeEnabled) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.amber[50],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.amber[200]!),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.amber[600], size: 16),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Mode otomatis aktif. Kontrol manual mungkin tidak tersedia.',
+                style: TextStyle(fontSize: 12, color: Colors.amber),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return const Text(
+        'Mode manual aktif - Kontrol penuh tersedia',
+        style: TextStyle(fontSize: 12, color: Colors.grey),
+      );
+    }
+  }
+
+  Widget _buildManualControls() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildControlButton(
+            icon: Icons.water_drop,
+            label: 'Pompa',
+            subtitle: _isPumpRunning ? 'Menyala' : 'Mati',
+            isActive: _isPumpRunning,
+            isEnabled: !widget.isAutoModeEnabled,
+            color: Colors.blue,
+            onPressed: !widget.isAutoModeEnabled ? _togglePump : null,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildControlButton(
+            icon: Icons.water,
+            label: 'Keran',
+            subtitle: _isValveOpen ? 'Terbuka' : 'Tertutup',
+            isActive: _isValveOpen,
+            isEnabled: !widget.isAutoModeEnabled,
+            color: Colors.green,
+            onPressed: !widget.isAutoModeEnabled ? _toggleValve : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModeControls() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildModeButton(
+            icon: Icons.input,
+            label: 'Mode Isi',
+            isActive: _isFillModeActive,
+            isEnabled: !widget.isAutoModeEnabled,
+            color: Colors.blue,
+            onPressed: !widget.isAutoModeEnabled ? _toggleFillMode : null,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildModeButton(
+            icon: Icons.output,
+            label: 'Mode Buang',
+            isActive: _isDrainModeActive,
+            isEnabled: !widget.isAutoModeEnabled,
+            color: Colors.orange,
+            onPressed: !widget.isAutoModeEnabled ? _toggleDrainMode : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmergencyStop() {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: () {
-          // Reset kedua valve ke closed
-          widget.onValveStatusChanged('closed');
-          widget.onDrainStatusChanged('closed');
-
-          _showSuccessSnackBar('Sistem direset - Semua kran ditutup');
-        },
-        icon: const Icon(Icons.refresh, size: 18),
-        label: const Text('Reset Sistem'),
+        onPressed: _emergencyStop,
+        icon: const Icon(Icons.stop, size: 20),
+        label: const Text(
+          'STOP DARURAT',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.purple,
+          backgroundColor: Colors.red,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -187,22 +186,194 @@ class _ManualControlsCardState extends State<ManualControlsCard> {
     );
   }
 
-  void _showSuccessSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Expanded(child: Text(message)),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
+  Widget _buildTestButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _testValveNotifications,
+        icon: const Icon(Icons.notifications_active, size: 20),
+        label: const Text('Test Notifikasi Valve'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.purple[100],
+          foregroundColor: Colors.purple[700],
+          padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-      );
-    }
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required bool isActive,
+    required bool isEnabled,
+    required Color color,
+    required VoidCallback? onPressed,
+  }) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isEnabled
+              ? (isActive ? color.withOpacity(0.1) : Colors.grey[50])
+              : Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isEnabled
+                ? (isActive ? color : Colors.grey[300]!)
+                : Colors.grey[300]!,
+            width: isActive ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isEnabled
+                  ? (isActive ? color : Colors.grey[600])
+                  : Colors.grey[400],
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isEnabled ? Colors.black87 : Colors.grey[500],
+              ),
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 10,
+                color: isEnabled ? Colors.grey[600] : Colors.grey[400],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeButton({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required bool isEnabled,
+    required Color color,
+    required VoidCallback? onPressed,
+  }) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isEnabled
+              ? (isActive ? color.withOpacity(0.1) : Colors.grey[50])
+              : Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isEnabled
+                ? (isActive ? color : Colors.grey[300]!)
+                : Colors.grey[300]!,
+            width: isActive ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isEnabled
+                  ? (isActive ? color : Colors.grey[600])
+                  : Colors.grey[400],
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isEnabled ? Colors.black87 : Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Event handlers
+  Future<void> _togglePump() async {
+    Logger().d("👆 Pump button pressed, current state: $_isPumpRunning");
+    final newState = await _controlService.togglePump(
+      _isPumpRunning,
+      widget.poolName,
+    );
+    setState(() {
+      _isPumpRunning = newState;
+      Logger().d("🔄 Pump state updated to: $newState");
+    });
+  }
+
+  Future<void> _toggleValve() async {
+    Logger().d("👆 Valve button pressed, current state: $_isValveOpen");
+    final newState = await _controlService.toggleValve(
+      _isValveOpen,
+      widget.poolName,
+    );
+    setState(() {
+      _isValveOpen = newState;
+      Logger().d("🔄 Valve state updated to: $newState");
+    });
+  }
+
+  Future<void> _toggleFillMode() async {
+    final result = _isFillModeActive
+        ? await _controlService.deactivateFillMode(widget.poolName)
+        : await _controlService.activateFillMode(widget.poolName);
+
+    setState(() {
+      _isPumpRunning = result['isPumpRunning']!;
+      _isValveOpen = result['isValveOpen']!;
+      _isFillModeActive = result['isFillModeActive']!;
+      _isDrainModeActive = result['isDrainModeActive']!;
+    });
+  }
+
+  Future<void> _toggleDrainMode() async {
+    final result = _isDrainModeActive
+        ? await _controlService.deactivateDrainMode(widget.poolName)
+        : await _controlService.activateDrainMode(widget.poolName);
+
+    setState(() {
+      _isPumpRunning = result['isPumpRunning']!;
+      _isValveOpen = result['isValveOpen']!;
+      _isFillModeActive = result['isFillModeActive']!;
+      _isDrainModeActive = result['isDrainModeActive']!;
+    });
+  }
+
+  Future<void> _emergencyStop() async {
+    final result = await _controlService.emergencyStop(widget.poolName);
+
+    setState(() {
+      _isPumpRunning = result['isPumpRunning']!;
+      _isValveOpen = result['isValveOpen']!;
+      _isFillModeActive = result['isFillModeActive']!;
+      _isDrainModeActive = result['isDrainModeActive']!;
+    });
+  }
+
+  void _testValveNotifications() {
+    Logger().i("🧪 Starting valve notification tests for: ${widget.poolName}");
+    widget.notificationService.sendTestValveNotifications(
+      poolName: widget.poolName,
+    );
   }
 }

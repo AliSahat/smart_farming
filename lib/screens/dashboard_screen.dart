@@ -4,21 +4,28 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:smart_farming/helper/notification_service.dart';
 import 'package:smart_farming/models/esp_water_data.dart';
 import 'package:smart_farming/services/repository/esp_repository.dart';
-import 'package:smart_farming/utils/logger.dart';
+import 'package:smart_farming/utils/logger.dart' hide Logger;
+import 'package:smart_farming/widgets/dashboard/manual_controls_card.dart';
+import 'package:smart_farming/widgets/dashboard/no_pool_state.dart';
+import 'package:smart_farming/widgets/permissions/notification_permission_dialog.dart';
 import '../providers/pool_provider.dart';
 import '../providers/notification_provider.dart';
-import '../providers/app_settings_provider.dart'; // <-- FIX: IMPORT YANG HILANG SEKARANG ADA
-import '../models/notification_model.dart';
+import '../providers/app_settings_provider.dart';
 import '../models/pool_model.dart';
 import '../screens/add_pool_screen.dart';
+
 import '../widgets/dashboard/header_widget.dart';
 import '../widgets/dashboard/water_monitor_widget.dart';
 import '../widgets/dashboard/pool_selector_widget.dart';
 import '../widgets/dashboard/pool_settings_widget.dart';
 import '../widgets/dashboard/control_status_card.dart';
+import 'package:logger/logger.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -31,17 +38,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _showSettings = false;
   ESPWaterData? _latestWaterData;
   Timer? _dataRefreshTimer;
-
-  // Manual control states
-  bool _isPumpRunning = false;
-  bool _isValveOpen = false;
-  bool _isFillModeActive = false;
-  bool _isDrainModeActive = false;
+  late NotificationService _notificationService;
 
   @override
   void initState() {
     super.initState();
+    Logger().i("🏁 Dashboard screen initializing");
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeServices();
       _loadInitialData();
     });
   }
@@ -52,46 +56,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  void _initializeServices() {
+    Logger().i("🔧 Initializing dashboard services");
+    final notificationProvider = Provider.of<NotificationProvider>(
+      context,
+      listen: false,
+    );
+    _notificationService = NotificationService(notificationProvider);
+    Logger().i("✅ Services initialized successfully");
+  }
+
   Future<void> _loadInitialData() async {
+    Logger().i("📊 Loading initial pool data");
     final poolProvider = Provider.of<PoolProvider>(context, listen: false);
     await poolProvider.loadPools();
     if (mounted && poolProvider.pools.isNotEmpty) {
+      Logger().i(
+        "🏊 Found ${poolProvider.pools.length} pools, fetching water data",
+      );
       _fetchWaterData();
       _setupDataRefresh();
+    } else {
+      Logger().i("⚠️ No pools found or widget unmounted");
     }
   }
 
   Future<void> _fetchWaterData() async {
+    Logger().d("📡 Fetching water sensor data");
     final poolProvider = Provider.of<PoolProvider>(context, listen: false);
     final settingsProvider = Provider.of<AppSettingsProvider>(
       context,
       listen: false,
     );
-    if (!mounted || poolProvider.isEmpty) return;
+
+    if (!mounted || poolProvider.isEmpty) {
+      Logger().d("❌ Fetch aborted: widget unmounted or no pools");
+      return;
+    }
 
     final espRepository = ESPRepository();
     try {
+      Logger().d("🔍 Requesting latest water distance data");
       final data = await espRepository.getLatestWaterDistance();
       if (mounted) {
         setState(() => _latestWaterData = data);
         if (data.isSuccess) {
+          Logger().i("✅ Water data received: ${data.distanceToWater}cm");
           poolProvider.updateCurrentWaterLevel(
             distanceToWater: data.distanceToWater,
-            onNotification: _addNotification,
-            // Fix: Add null safety check here too
+            onNotification: _notificationService.addNotificationFromItem,
             isSafetyTimerEnabled:
-                settingsProvider.isSafetyTimerEnabled,
+                settingsProvider.isSafetyTimerEnabled ?? false,
           );
         } else {
-          _addNotificationHelper(
+          Logger().e("❌ Sensor error: ${data.errorMessage}");
+          _notificationService.addSystemNotification(
             'Sensor offline: ${data.errorMessage}',
             'error',
+            poolName: poolProvider.currentPool?.name,
           );
         }
       }
     } catch (e) {
+      Logger().e("💥 Exception while fetching water data", error: e);
       if (mounted) {
-        _addNotificationHelper('Error koneksi ke sensor: $e', 'error');
+        _notificationService.addSystemNotification(
+          'Error koneksi ke sensor: $e',
+          'error',
+          poolName: poolProvider.currentPool?.name,
+        );
       }
     }
   }
@@ -103,30 +136,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  void _addNotification(NotificationItem notification) {
-    Provider.of<NotificationProvider>(
-      context,
-      listen: false,
-    ).addNotification(notification);
-  }
-
-  void _addNotificationHelper(String message, String type) {
-    final poolName = Provider.of<PoolProvider>(
-      context,
-      listen: false,
-    ).currentPool?.name;
-    _addNotification(
-      NotificationItem(
-        id: DateTime.now().toString(),
-        title: type == 'error' ? 'Error Sistem' : 'Info Sistem',
-        message: message,
-        type: type,
-        timestamp: DateTime.now(),
-        poolName: poolName,
-      ),
-    );
-  }
-
   void _onPoolSelected(String poolKey) {
     Provider.of<PoolProvider>(context, listen: false).selectPool(poolKey);
     _fetchWaterData();
@@ -134,7 +143,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context,
       listen: false,
     ).pools[poolKey]?.name;
-    _addNotificationHelper('Beralih ke "$poolName"', 'info');
+    _notificationService.addSystemNotification(
+      'Beralih ke "$poolName"',
+      'info',
+    );
   }
 
   void _onPoolAdded(String key, Pool pool) async {
@@ -157,14 +169,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (context) => AddPoolScreen(onPoolAdded: _onPoolAdded),
     ),
   );
+  void _testNotifications() async {
+    // First check permission status
+    final status = await Permission.notification.status;
+    debugPrint(
+      "Notification permission status: $status",
+    ); // See if permission is granted
+
+    if (!status.isGranted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Notifikasi tidak dapat ditampilkan: Izin tidak diberikan',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      // Request permission
+      await NotificationPermissionHelper.checkAndRequestPermission(context);
+      return;
+    }
+
+    // Continue with sending notification...
+    _notificationService.addSystemNotification(
+      'Ini adalah notifikasi uji coba sistem',
+      'info',
+      poolName: Provider.of<PoolProvider>(
+        context,
+        listen: false,
+      ).currentPool?.name,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<PoolProvider>(
       builder: (context, poolProvider, child) {
-        if (!poolProvider.isInitialized)
-          return const Center(child: CircularProgressIndicator());
-        if (poolProvider.isEmpty) return _buildNoPoolState();
+        if (!poolProvider.isInitialized) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (poolProvider.isEmpty) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
+            body: NoPoolStateWidget(onAddPoolPressed: _navigateToAddPool),
+          );
+        }
+
         return _buildDashboard(poolProvider);
       },
     );
@@ -215,438 +268,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
+                onPressed: () => setState(() => _showSettings = !_showSettings),
                 icon: Icon(
-                  _showSettings ? Icons.visibility_off : Icons.settings,
-                  size: 18,
+                  _showSettings ? Icons.expand_less : Icons.expand_more,
                 ),
                 label: Text(
                   _showSettings
                       ? 'Sembunyikan Pengaturan'
                       : 'Tampilkan Pengaturan',
                 ),
-                onPressed: () => setState(() => _showSettings = !_showSettings),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.blueGrey,
-                  side: BorderSide(color: Colors.blueGrey.withOpacity(0.3)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
               ),
             ),
             const SizedBox(height: 20),
-            // Manual Control Card - Moved to bottom
-            _buildManualControlCard(poolProvider, settingsProvider),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildManualControlCard(
-    PoolProvider poolProvider,
-    AppSettingsProvider settingsProvider,
-  ) {
-    // Fix: Add null safety check for isAutoModeEnabled
-    final isAutoMode = settingsProvider.isAutoModeEnabled ?? false;
-
-    return Card(
-      elevation: 2,
-      color: Colors.indigo[50],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.build, color: Colors.indigo[600], size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  "Kontrol Manual",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.indigo[600],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // Warning message when auto mode is enabled
-            if (isAutoMode) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange[300]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.warning, color: Colors.orange[600], size: 18),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Mode otomatis aktif. Matikan di pengaturan untuk kontrol manual.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              const Text(
-                "Kontrol perangkat secara manual. Pastikan mode otomatis dimatikan.",
-                style: TextStyle(fontSize: 12),
-              ),
-            ],
-
-            const SizedBox(height: 16),
-
-            // Manual Controls
-            Row(
-              children: [
-                // Pump Control
-                Expanded(
-                  child: _buildControlButton(
-                    icon: Icons.water_drop,
-                    label: "Pompa",
-                    subtitle: _isPumpRunning ? "Menyala" : "Mati",
-                    isActive: _isPumpRunning,
-                    isEnabled: !isAutoMode,
-                    color: Colors.blue,
-                    onPressed: !isAutoMode ? () => _togglePump() : null,
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                // Valve Control
-                Expanded(
-                  child: _buildControlButton(
-                    icon: Icons.tune,
-                    label: "Katup",
-                    subtitle: _isValveOpen ? "Terbuka" : "Tertutup",
-                    isActive: _isValveOpen,
-                    isEnabled: !isAutoMode,
-                    color: Colors.green,
-                    onPressed: !isAutoMode ? () => _toggleValve() : null,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Mode Controls
-            Row(
-              children: [
-                // Fill Mode
-                Expanded(
-                  child: _buildModeButton(
-                    icon: Icons.arrow_downward,
-                    label: "Isi Air",
-                    isActive: _isFillModeActive,
-                    isEnabled: !isAutoMode,
-                    color: Colors.cyan,
-                    onPressed: !isAutoMode ? () => _toggleFillMode() : null,
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                // Drain Mode
-                Expanded(
-                  child: _buildModeButton(
-                    icon: Icons.arrow_upward,
-                    label: "Kosongkan",
-                    isActive: _isDrainModeActive,
-                    isEnabled: !isAutoMode,
-                    color: Colors.red,
-                    onPressed: !isAutoMode ? () => _toggleDrainMode() : null,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Emergency Stop
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _emergencyStop,
-                icon: const Icon(Icons.stop, color: Colors.white),
-                label: const Text(
-                  'STOP DARURAT',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red[600],
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildControlButton({
-    required IconData icon,
-    required String label,
-    required String subtitle,
-    required bool isActive,
-    required bool isEnabled,
-    required Color color,
-    required VoidCallback? onPressed,
-  }) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isEnabled
-              ? (isActive ? color.withOpacity(0.1) : Colors.grey[50])
-              : Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isEnabled
-                ? (isActive ? color : Colors.grey[300]!)
-                : Colors.grey[300]!,
-            width: isActive ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: isEnabled
-                  ? (isActive ? color : Colors.grey[600])
-                  : Colors.grey[400],
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                color: isEnabled
-                    ? (isActive ? color : Colors.grey[700])
-                    : Colors.grey[400],
-              ),
-            ),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 10,
-                color: isEnabled ? Colors.grey[600] : Colors.grey[400],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModeButton({
-    required IconData icon,
-    required String label,
-    required bool isActive,
-    required bool isEnabled,
-    required Color color,
-    required VoidCallback? onPressed,
-  }) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          color: isEnabled
-              ? (isActive ? color.withOpacity(0.1) : Colors.grey[50])
-              : Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isEnabled
-                ? (isActive ? color : Colors.grey[300]!)
-                : Colors.grey[300]!,
-            width: isActive ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: isEnabled
-                  ? (isActive ? color : Colors.grey[600])
-                  : Colors.grey[400],
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                color: isEnabled
-                    ? (isActive ? color : Colors.grey[700])
-                    : Colors.grey[400],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Manual control methods
-  void _togglePump() {
-    setState(() {
-      _isPumpRunning = !_isPumpRunning;
-    });
-
-    _addNotificationHelper(
-      _isPumpRunning
-          ? 'Pompa dinyalakan secara manual'
-          : 'Pompa dimatikan secara manual',
-      'info',
-    );
-
-    // TODO: Implement actual ESP32 pump control
-    print('Pump ${_isPumpRunning ? 'ON' : 'OFF'}');
-  }
-
-  void _toggleValve() {
-    setState(() {
-      _isValveOpen = !_isValveOpen;
-    });
-
-    _addNotificationHelper(
-      _isValveOpen
-          ? 'Katup dibuka secara manual'
-          : 'Katup ditutup secara manual',
-      'info',
-    );
-
-    // TODO: Implement actual ESP32 valve control
-    print('Valve ${_isValveOpen ? 'OPEN' : 'CLOSED'}');
-  }
-
-  void _toggleFillMode() {
-    setState(() {
-      _isFillModeActive = !_isFillModeActive;
-      if (_isFillModeActive) {
-        _isDrainModeActive = false; // Turn off drain mode
-        _isPumpRunning = true;
-        _isValveOpen = false;
-      } else {
-        _isPumpRunning = false;
-      }
-    });
-
-    _addNotificationHelper(
-      _isFillModeActive
-          ? 'Mode pengisian air diaktifkan'
-          : 'Mode pengisian air dinonaktifkan',
-      'info',
-    );
-
-    // TODO: Implement actual ESP32 fill mode control
-    print('Fill mode ${_isFillModeActive ? 'ACTIVE' : 'INACTIVE'}');
-  }
-
-  void _toggleDrainMode() {
-    setState(() {
-      _isDrainModeActive = !_isDrainModeActive;
-      if (_isDrainModeActive) {
-        _isFillModeActive = false; // Turn off fill mode
-        _isPumpRunning = false;
-        _isValveOpen = true;
-      } else {
-        _isValveOpen = false;
-      }
-    });
-
-    _addNotificationHelper(
-      _isDrainModeActive
-          ? 'Mode pengosongan air diaktifkan'
-          : 'Mode pengosongan air dinonaktifkan',
-      'info',
-    );
-
-    // TODO: Implement actual ESP32 drain mode control
-    print('Drain mode ${_isDrainModeActive ? 'ACTIVE' : 'INACTIVE'}');
-  }
-
-  void _emergencyStop() {
-    setState(() {
-      _isPumpRunning = false;
-      _isValveOpen = false;
-      _isFillModeActive = false;
-      _isDrainModeActive = false;
-    });
-
-    _addNotificationHelper('STOP DARURAT - Semua sistem dimatikan', 'error');
-
-    // TODO: Implement actual ESP32 emergency stop
-    print('EMERGENCY STOP - All systems OFF');
-  }
-
-  Widget _buildNoPoolState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.pool_outlined, size: 80, color: Colors.blue[200]),
-            const SizedBox(height: 24),
-            const Text(
-              'Belum Ada Kolam',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Tambahkan kolam atau wadah pertama Anda untuk memulai monitoring.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: _navigateToAddPool,
-              icon: const Icon(Icons.add, size: 20),
-              label: const Text('Tambah Kolam/Wadah Baru'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[600],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+            ManualControlCard(
+              isAutoModeEnabled: settingsProvider.isAutoModeEnabled ?? false,
+              poolName: currentPool.name,
+              notificationService: _notificationService,
             ),
           ],
         ),

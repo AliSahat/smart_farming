@@ -78,9 +78,16 @@ class PoolProvider with ChangeNotifier {
     }
 
     _safetyTimer?.cancel();
-    if (isSafetyTimerEnabled && (_valveStatus == ValveStatus.open || _drainStatus == DrainStatus.open)) {
+    if (isSafetyTimerEnabled &&
+        (_valveStatus == ValveStatus.open ||
+            _drainStatus == DrainStatus.open)) {
       _safetyTimer = Timer(_maxDuration, () {
-        onNotification(_createNotification('Aksi berjalan terlalu lama! Sistem dihentikan demi keamanan.', 'error'));
+        onNotification(
+          _createNotification(
+            'Aksi berjalan terlalu lama! Sistem dihentikan demi keamanan.',
+            'error',
+          ),
+        );
         _valveStatus = ValveStatus.closed;
         _drainStatus = DrainStatus.closed;
         notifyListeners();
@@ -88,14 +95,31 @@ class PoolProvider with ChangeNotifier {
       });
     }
 
-    if ((_valveStatus != previousValveStatus || _drainStatus != previousDrainStatus)) {
+    if ((_valveStatus != previousValveStatus ||
+        _drainStatus != previousDrainStatus)) {
       final depthCm = pool.currentDepth.toStringAsFixed(1);
       if (_valveStatus == ValveStatus.open) {
-        onNotification(_createNotification('Level air rendah (${depthCm}cm). Kran dibuka.', 'warning'));
+        onNotification(
+          _createNotification(
+            'Level air rendah (${depthCm}cm). Kran dibuka.',
+            'warning',
+          ),
+        );
       } else if (_drainStatus == DrainStatus.open) {
-         onNotification(_createNotification('Level air tinggi (${depthCm}cm). Pembuangan dibuka.', 'warning'));
-      } else if (previousValveStatus == ValveStatus.open || previousDrainStatus == DrainStatus.open) {
-         onNotification(_createNotification('Level air normal (${depthCm}cm). Sistem standby.', 'success'));
+        onNotification(
+          _createNotification(
+            'Level air tinggi (${depthCm}cm). Pembuangan dibuka.',
+            'warning',
+          ),
+        );
+      } else if (previousValveStatus == ValveStatus.open ||
+          previousDrainStatus == DrainStatus.open) {
+        onNotification(
+          _createNotification(
+            'Level air normal (${depthCm}cm). Sistem standby.',
+            'success',
+          ),
+        );
       }
     }
     notifyListeners();
@@ -103,18 +127,23 @@ class PoolProvider with ChangeNotifier {
 
   void updateCurrentWaterLevel({
     required double distanceToWater,
-    required Function(NotificationItem) onNotification,
+    required Function(NotificationItem) onNotification, // Ubah tipe ini
     required bool isSafetyTimerEnabled,
   }) {
-    if (hasValidSelection) {
-      final pool = currentPool!;
-      pool.currentDepth = (pool.depth - distanceToWater).clamp(0.0, pool.depth);
-      checkWaterLevelAndControl(
-        onNotification: onNotification,
-        isSafetyTimerEnabled: isSafetyTimerEnabled,
-      );
-      notifyListeners();
-    }
+    if (!hasValidSelection) return;
+
+    final pool = currentPool!;
+    final tankDepth = pool.depth;
+    final currentWaterDepth = tankDepth - distanceToWater;
+
+    _pools[_selectedPoolKey] = pool.copyWith(currentDepth: currentWaterDepth);
+
+    checkWaterLevelAndControl(
+      onNotification: onNotification,
+      isSafetyTimerEnabled: isSafetyTimerEnabled,
+    );
+
+    notifyListeners();
   }
 
   void simulateWaterLevelChange({
@@ -124,7 +153,10 @@ class PoolProvider with ChangeNotifier {
   }) {
     if (hasValidSelection) {
       final pool = currentPool!;
-      pool.currentDepth = (pool.currentDepth + changeInCm).clamp(0.0, pool.depth);
+      pool.currentDepth = (pool.currentDepth + changeInCm).clamp(
+        0.0,
+        pool.depth,
+      );
       checkWaterLevelAndControl(
         onNotification: onNotification,
         isSafetyTimerEnabled: isSafetyTimerEnabled,
@@ -142,7 +174,9 @@ class PoolProvider with ChangeNotifier {
       if (_pools.length == 1) selectPool(key);
       notifyListeners();
       return true;
-    } catch(e) { return false; }
+    } catch (e) {
+      return false;
+    }
   }
 
   Future<bool> updatePool(String key, Pool pool) async {
@@ -152,11 +186,13 @@ class PoolProvider with ChangeNotifier {
       _pools[key] = pool;
       notifyListeners();
       return true;
-    } catch(e) { return false; }
+    } catch (e) {
+      return false;
+    }
   }
 
   Future<bool> deletePool(String key) async {
-     try {
+    try {
       if (!_pools.containsKey(key)) return false;
       await _dbHelper.deletePool(key);
       _pools.remove(key);
@@ -165,14 +201,19 @@ class PoolProvider with ChangeNotifier {
       }
       notifyListeners();
       return true;
-    } catch (e) { return false; }
+    } catch (e) {
+      return false;
+    }
   }
 
   void selectPool(String key) {
     if (_pools.containsKey(key)) {
       _selectedPoolKey = key;
       // Panggil checkWaterLevelAndControl tanpa notifikasi saat hanya ganti kolam
-      checkWaterLevelAndControl(onNotification: (_) {}, isSafetyTimerEnabled: false);
+      checkWaterLevelAndControl(
+        onNotification: (_) {},
+        isSafetyTimerEnabled: false,
+      );
       notifyListeners();
     }
   }
@@ -180,7 +221,9 @@ class PoolProvider with ChangeNotifier {
   NotificationItem _createNotification(String message, String type) {
     return NotificationItem(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: type == 'warning' ? 'Peringatan Level Air' : (type == 'success' ? 'Status Normal' : 'Info Sistem'),
+      title: type == 'warning'
+          ? 'Peringatan Level Air'
+          : (type == 'success' ? 'Status Normal' : 'Info Sistem'),
       message: message,
       type: type,
       timestamp: DateTime.now(),
