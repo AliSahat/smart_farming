@@ -79,15 +79,14 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
     final maxLevel = double.parse(_maxLevelController.text);
     final minLevel = double.parse(_minLevelController.text);
 
-    final newCurrentDepth = (widget.waterLevelPercent / 100) * depth;
-
+    // FIX: Gunakan nilai currentDepth yang sudah ada dari state, jangan dihitung ulang.
     final newPool = Pool(
       name: name,
       depth: depth,
       normalLevel: normalLevel,
       maxLevel: maxLevel,
       minLevel: minLevel,
-      currentDepth: newCurrentDepth,
+      currentDepth: widget.pool.currentDepth, // Menggunakan nilai yang ada
     );
 
     widget.onSettingsChanged(newPool);
