@@ -1,6 +1,6 @@
 // lib/screens/dashboard_screen.dart
 // VERSI PERBAIKAN FINAL - Menghapus kontrol simulasi
-// ignore_for_file: prefer_final_fields, unused_field, unused_element, unused_import
+// ignore_for_file: prefer_final_fields, unused_field, unused_element, unused_import, curly_braces_in_flow_control_structures
 
 import 'dart:async';
 import 'package:flutter/material.dart';
