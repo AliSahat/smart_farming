@@ -1,5 +1,5 @@
 // lib/screens/dashboard_screen.dart
-// VERSI PERBAIKAN FINAL - Menghapus kontrol simulasi
+// Optimasi dengan Selector dan interval yang lebih panjang
 // ignore_for_file: prefer_final_fields, unused_field, unused_element, unused_import, curly_braces_in_flow_control_structures
 
 import 'dart:async';
@@ -29,10 +29,12 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // State Lokal untuk UI
   bool _showSettings = false;
   ESPWaterData? _latestWaterData;
   Timer? _dataRefreshTimer;
+  
+  // Add flag to prevent excessive rebuilds
+  bool _isDataFetching = false;
 
   @override
   void initState() {
@@ -57,13 +59,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // Optimize data fetching to prevent excessive calls
   Future<void> _fetchWaterData() async {
+    if (_isDataFetching) return; // Prevent multiple simultaneous calls
+    
+    _isDataFetching = true;
+    
     final poolProvider = Provider.of<PoolProvider>(context, listen: false);
     final settingsProvider = Provider.of<AppSettingsProvider>(
       context,
       listen: false,
     );
-    if (!mounted || poolProvider.isEmpty) return;
+    
+    if (!mounted || poolProvider.isEmpty) {
+      _isDataFetching = false;
+      return;
+    }
+    
     final espRepository = ESPRepository();
     try {
       final data = await espRepository.getLatestWaterDistance();
@@ -86,13 +98,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         _addNotificationHelper('Error koneksi ke sensor: $e', 'error');
       }
+    } finally {
+      _isDataFetching = false;
     }
   }
 
+  // Optimize timer to run less frequently when not needed
   void _setupDataRefresh() {
     _dataRefreshTimer?.cancel();
-    _dataRefreshTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
-      if (mounted) _fetchWaterData();
+    // Perlambat refresh dari 30 detik ke 2 menit
+    _dataRefreshTimer = Timer.periodic(const Duration(minutes: 2), (timer) {
+      if (mounted && !_isDataFetching) {
+        _fetchWaterData();
+      }
     });
   }
 
@@ -153,107 +171,158 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<PoolProvider>(
-      builder: (context, poolProvider, child) {
-        if (!poolProvider.isInitialized)
-          return const Center(child: CircularProgressIndicator());
-        if (poolProvider.isEmpty) return _buildNoPoolState();
-        return _buildDashboard(poolProvider);
-      },
-    );
-  }
-
-  Widget _buildDashboard(PoolProvider poolProvider) {
-    final currentPool = poolProvider.currentPool!;
-    final waterLevelPercent = currentPool.currentLevelPercent;
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            HeaderWidget(userName: 'Smart Farmer', connectionStatus: true),
-            const SizedBox(height: 20),
-            PoolSelectorWidget(
-              poolSettings: poolProvider.pools,
-              selectedPoolKey: poolProvider.selectedPoolKey,
-              onPoolSelected: _onPoolSelected,
-              onAddPoolTapped: _navigateToAddPool,
-            ),
-            const SizedBox(height: 20),
-            WaterMonitorWidget(
-              waterLevel: waterLevelPercent,
-              pool: currentPool,
-              latestWaterData: _latestWaterData,
-              isLoading: poolProvider.isLoading,
-            ),
-            const SizedBox(height: 20),
-            ControlStatusCard(
-              valveStatus: poolProvider.valveStatus,
-              drainStatus: poolProvider.drainStatus,
-              normalLevel: currentPool.normalLevel,
-            ),
-            const SizedBox(height: 20),
-            // Manual Controls Card
-            ManualControlsCard(
-              isManualMode: poolProvider.isManualMode,
-              valveStatus: poolProvider.valveStatus,
-              drainStatus: poolProvider.drainStatus,
-              onManualModeChanged: (isActive) {
-                poolProvider.setManualMode(
-                  isActive,
-                  onNotification: _addNotification,
-                );
-              },
-              onValveChanged: (status) {
-                poolProvider.manualSetValve(
-                  status,
-                  onNotification: _addNotification,
-                );
-              },
-              onDrainChanged: (status) {
-                poolProvider.manualSetDrain(
-                  status,
-                  onNotification: _addNotification,
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-            if (_showSettings) ...[
-              PoolSettingsWidget(
+      // Ganti Consumer dengan Selector untuk optimization
+      body: Selector<PoolProvider, String>(
+        selector: (context, provider) => 
+          '${provider.isInitialized}_${provider.isEmpty}_${provider.selectedPoolKey}',
+        builder: (context, key, child) {
+          final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+          
+          if (!poolProvider.isInitialized) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (poolProvider.isEmpty) {
+            return _buildNoPoolState();
+          }
+          return _buildDashboard(poolProvider);
+        },
+      ),
+    );
+  }
+  
+  Widget _buildDashboard(PoolProvider poolProvider) {
+    final currentPool = poolProvider.currentPool!;
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header - static, tidak perlu rebuild
+          HeaderWidget(
+            userName: 'Smart Farmer', 
+            connectionStatus: true,
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Pool selector - hanya rebuild saat pools berubah
+          Selector<PoolProvider, String>(
+            selector: (context, provider) => 
+              '${provider.pools.length}_${provider.selectedPoolKey}',
+            builder: (context, poolsKey, child) {
+              return PoolSelectorWidget(
+                poolSettings: poolProvider.pools,
+                selectedPoolKey: poolProvider.selectedPoolKey,
+                onPoolSelected: _onPoolSelected,
+                onAddPoolTapped: _navigateToAddPool,
+              );
+            },
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Water monitor - hanya rebuild saat level berubah signifikan
+          Selector<PoolProvider, double>(
+            selector: (context, provider) => 
+              (provider.currentPool?.currentLevelPercent ?? 0).roundToDouble(),
+            builder: (context, waterLevel, child) {
+              return WaterMonitorWidget(
+                waterLevel: waterLevel,
                 pool: currentPool,
-                onSettingsChanged: _onPoolSettingsChanged,
-                waterLevelPercent: waterLevelPercent,
-              ),
-              const SizedBox(height: 20),
-            ],
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: Icon(
-                  _showSettings ? Icons.visibility_off : Icons.settings,
-                  size: 18,
-                ),
-                label: Text(
-                  _showSettings
-                      ? 'Sembunyikan Pengaturan'
-                      : 'Tampilkan Pengaturan',
-                ),
-                onPressed: () => setState(() => _showSettings = !_showSettings),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.blueGrey,
-                  side: BorderSide(color: Colors.blueGrey.withOpacity(0.3)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
+                latestWaterData: _latestWaterData,
+                isLoading: false, // Remove isLoading dependency
+              );
+            },
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Control status - hanya rebuild saat status berubah
+          Selector<PoolProvider, String>(
+            selector: (context, provider) => 
+              '${provider.valveStatus.toString()}_${provider.drainStatus.toString()}',
+            builder: (context, statusKey, child) {
+              return ControlStatusCard(
+                valveStatus: poolProvider.valveStatus,
+                drainStatus: poolProvider.drainStatus,
+                normalLevel: currentPool.normalLevel,
+              );
+            },
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Manual controls - hanya rebuild saat manual mode berubah
+          Selector<PoolProvider, String>(
+            selector: (context, provider) => 
+              '${provider.isManualMode}_${provider.valveStatus.toString()}_${provider.drainStatus.toString()}',
+            builder: (context, controlKey, child) {
+              return ManualControlsCard(
+                isManualMode: poolProvider.isManualMode,
+                valveStatus: poolProvider.valveStatus,
+                drainStatus: poolProvider.drainStatus,
+                onManualModeChanged: (isActive) {
+                  poolProvider.setManualMode(
+                    isActive,
+                    onNotification: _addNotification,
+                  );
+                },
+                onValveChanged: (status) {
+                  poolProvider.manualSetValve(
+                    status,
+                    onNotification: _addNotification,
+                  );
+                },
+                onDrainChanged: (status) {
+                  poolProvider.manualSetDrain(
+                    status,
+                    onNotification: _addNotification,
+                  );
+                },
+              );
+            },
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Settings toggle - static
+          if (_showSettings) ...[
+            PoolSettingsWidget(
+              pool: currentPool,
+              onSettingsChanged: _onPoolSettingsChanged,
+              waterLevelPercent: currentPool.currentLevelPercent,
             ),
             const SizedBox(height: 20),
           ],
-        ),
+          
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: Icon(
+                _showSettings ? Icons.visibility_off : Icons.settings,
+                size: 18,
+              ),
+              label: Text(
+                _showSettings
+                    ? 'Sembunyikan Pengaturan'
+                    : 'Tampilkan Pengaturan',
+              ),
+              onPressed: () => setState(() => _showSettings = !_showSettings),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.blueGrey,
+                side: BorderSide(color: Colors.blueGrey.withOpacity(0.3)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 20),
+        ],
       ),
     );
   }

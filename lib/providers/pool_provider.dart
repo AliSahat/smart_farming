@@ -164,6 +164,23 @@ class PoolProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Timer? _notifyTimer;
+  bool _hasPendingNotification = false;
+
+  // Debounced notifyListeners
+  void _debouncedNotifyListeners() {
+    if (_hasPendingNotification) return;
+
+    _hasPendingNotification = true;
+    _notifyTimer?.cancel();
+    _notifyTimer = Timer(const Duration(milliseconds: 500), () {
+      if (_hasPendingNotification) {
+        _hasPendingNotification = false;
+        notifyListeners();
+      }
+    });
+  }
+
   void updateCurrentWaterLevel({
     required double distanceToWater,
     required Function(NotificationItem) onNotification,
@@ -171,32 +188,17 @@ class PoolProvider with ChangeNotifier {
   }) {
     if (hasValidSelection) {
       final pool = currentPool!;
+      final oldDepth = pool.currentDepth;
       pool.currentDepth = (pool.depth - distanceToWater).clamp(0.0, pool.depth);
-      checkWaterLevelAndControl(
-        onNotification: onNotification,
-        isSafetyTimerEnabled: isSafetyTimerEnabled,
-      );
-      notifyListeners();
-    }
-  }
 
-  void simulateWaterLevelChange({
-    required double changeInCm,
-    required Function(NotificationItem) onNotification,
-    required bool isSafetyTimerEnabled,
-  }) {
-    if (hasValidSelection) {
-      final pool = currentPool!;
-      pool.currentDepth = (pool.currentDepth + changeInCm).clamp(
-        0.0,
-        pool.depth,
-      );
-      checkWaterLevelAndControl(
-        onNotification: onNotification,
-        isSafetyTimerEnabled: isSafetyTimerEnabled,
-      );
-      Logger.d("Simulated water level: ${pool.currentDepth} cm");
-      notifyListeners();
+      // Tingkatkan threshold untuk mengurangi sensitivity
+      if ((oldDepth - pool.currentDepth).abs() > 2.0) {
+        checkWaterLevelAndControl(
+          onNotification: onNotification,
+          isSafetyTimerEnabled: isSafetyTimerEnabled,
+        );
+        _debouncedNotifyListeners(); // Use debounced version
+      }
     }
   }
 
@@ -269,6 +271,7 @@ class PoolProvider with ChangeNotifier {
   @override
   void dispose() {
     _safetyTimer?.cancel();
+    _notifyTimer?.cancel();
     super.dispose();
   }
 
