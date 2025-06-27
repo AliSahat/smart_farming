@@ -24,6 +24,8 @@ class PoolProvider with ChangeNotifier {
   Timer? _safetyTimer;
   final Duration _maxDuration = const Duration(minutes: 15);
 
+  var isManualMode;
+
   Map<String, Pool> get pools => _pools;
   String get selectedPoolKey => _selectedPoolKey;
   Pool? get currentPool => _pools[_selectedPoolKey];
@@ -236,4 +238,8 @@ class PoolProvider with ChangeNotifier {
     _safetyTimer?.cancel();
     super.dispose();
   }
+
+  void setManualMode(bool isActive, {required void Function(NotificationItem notification) onNotification}) {}
+
+  void manualSetDrain(DrainStatus status, {required void Function(NotificationItem notification) onNotification}) {}
 }

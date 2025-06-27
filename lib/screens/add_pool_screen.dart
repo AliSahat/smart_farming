@@ -1,3 +1,5 @@
+// lib/screens/add_pool_screen.dart
+// VERSI PERBAIKAN FINAL - Input Min/Max dalam CM
 // ignore_for_file: unused_import
 
 import 'package:flutter/material.dart';
@@ -18,9 +20,9 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _depthController = TextEditingController();
-  final _normalLevelController = TextEditingController(text: '75');
-  final _maxLevelController = TextEditingController(text: '85');
-  final _minLevelController = TextEditingController(text: '30');
+  final _normalLevelController = TextEditingController();
+  final _maxLevelController = TextEditingController();
+  final _minLevelController = TextEditingController();
 
   String _selectedTemplate = 'custom';
 
@@ -39,32 +41,35 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
       _selectedTemplate = template;
     });
 
+    // Template sekarang mengisi dalam CM
     switch (template) {
       case 'kolam-ikan':
         _nameController.text = 'Kolam Ikan';
         _depthController.text = '150';
-        _normalLevelController.text = '75';
-        _maxLevelController.text = '85';
-        _minLevelController.text = '30';
+        _minLevelController.text = '45';  // Contoh: 30% dari 150cm
+        _maxLevelController.text = '127'; // Contoh: 85% dari 150cm
+        _normalLevelController.text = '112';// Contoh: 75% dari 150cm
         break;
       case 'aquarium':
         _nameController.text = 'Aquarium';
-        _depthController.text = '100';
-        _normalLevelController.text = '80';
-        _maxLevelController.text = '80';
-        _minLevelController.text = '30';
+        _depthController.text = '60';
+        _minLevelController.text = '20';
+        _maxLevelController.text = '50';
+        _normalLevelController.text = '45';
         break;
       case 'tangki-air':
         _nameController.text = 'Tangki Air';
         _depthController.text = '200';
-        _normalLevelController.text = '75';
-        _maxLevelController.text = '90';
-        _minLevelController.text = '20';
+        _minLevelController.text = '40';
+        _maxLevelController.text = '180';
+        _normalLevelController.text = '150';
         break;
       default:
-        // Custom - biarkan kosong
         _nameController.clear();
         _depthController.clear();
+        _minLevelController.clear();
+        _maxLevelController.clear();
+        _normalLevelController.clear();
         break;
     }
   }
@@ -84,13 +89,16 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
         .replaceAll(' ', '-')
         .replaceAll(RegExp(r'[^a-z0-9-]'), '');
 
+    // Cek duplikasi key sederhana, bisa diganti dengan logic yang lebih baik
+    // if (provider.pools.containsKey(key)) { ... }
+
     final newPool = Pool(
       name: name,
+      depth: depth,
+      normalLevel: normalLevel,
       maxLevel: maxLevel,
       minLevel: minLevel,
-      normalLevel: normalLevel,
-      depth: depth,
-      currentDepth: 0,
+      currentDepth: 0, // Default ketinggian awal
     );
 
     widget.onPoolAdded(key, newPool);
@@ -114,15 +122,10 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Template Section
               _buildTemplateSection(),
               const SizedBox(height: 24),
-
-              // Form Section
               _buildFormSection(),
               const SizedBox(height: 32),
-
-              // Save Button
               _buildSaveButton(),
             ],
           ),
@@ -130,8 +133,6 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
       ),
     );
   }
-
-  // ...existing code...
 
   Widget _buildTemplateSection() {
     return Card(
@@ -142,38 +143,24 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                Icon(
-                  Icons.category,
-                  color: Colors.blue[600],
-                  size: 24,
-                ), // Changed this line
-                const SizedBox(width: 12),
-                const Text(
-                  'Template Kolam/Wadah',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
+                Icon(Icons.category, color: Colors.blue, size: 24),
+                SizedBox(width: 12),
+                Text('Pilih Template', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               ],
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Pilih template untuk mengisi pengaturan secara otomatis',
-              style: TextStyle(color: Colors.grey),
-            ),
+            const SizedBox(height: 8),
+            const Text('Pilih template untuk mengisi pengaturan umum secara otomatis.', style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
-                _buildTemplateChip('custom', 'Custom', Icons.edit),
+                _buildTemplateChip('custom', 'Kosong', Icons.edit),
                 _buildTemplateChip('kolam-ikan', 'Kolam Ikan', Icons.set_meal),
                 _buildTemplateChip('aquarium', 'Aquarium', Icons.waves),
-                _buildTemplateChip(
-                  'tangki-air',
-                  'Tangki Air',
-                  Icons.water_drop,
-                ),
+                _buildTemplateChip('tangki-air', 'Tangki Air', Icons.water_drop),
               ],
             ),
           ],
@@ -182,22 +169,14 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
     );
   }
 
-  // ...existing code...
   Widget _buildTemplateChip(String value, String label, IconData icon) {
     final isSelected = _selectedTemplate == value;
     return FilterChip(
       selected: isSelected,
       onSelected: (selected) => _applyTemplate(value),
-      avatar: Icon(
-        icon,
-        size: 16,
-        color: isSelected ? Colors.white : Colors.grey[600],
-      ),
+      avatar: Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.grey[600]),
       label: Text(label),
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.grey[700],
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-      ),
+      labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.grey[700], fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
       backgroundColor: Colors.grey[200],
       selectedColor: Colors.blue[600],
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -213,27 +192,19 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                Icon(Icons.edit, color: Colors.orange[600], size: 24),
-                const SizedBox(width: 12),
-                const Text(
-                  'Detail Kolam/Wadah',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
+                Icon(Icons.edit_note, color: Colors.orange, size: 24),
+                SizedBox(width: 12),
+                Text('Detail Kolam/Wadah', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               ],
             ),
             const SizedBox(height: 20),
             _buildTextField(
               controller: _nameController,
               label: 'Nama Kolam/Wadah',
-              icon: Icons.label,
-              validator: (value) {
-                if (value?.trim().isEmpty ?? true) {
-                  return 'Nama tidak boleh kosong';
-                }
-                return null;
-              },
+              icon: Icons.label_important_outline,
+              validator: (value) => (value?.trim().isEmpty ?? true) ? 'Nama tidak boleh kosong' : null,
             ),
             const SizedBox(height: 16),
             _buildTextField(
@@ -242,74 +213,56 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
               icon: Icons.straighten,
               isNumeric: true,
               validator: (value) {
-                if (value?.isEmpty ?? true)
-                  return 'Kedalaman tidak boleh kosong';
-                final depth = double.tryParse(value!);
-                if (depth == null || depth <= 0) {
-                  return 'Kedalaman harus berupa angka positif';
-                }
+                if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
+                if ((double.tryParse(value!) ?? 0) <= 0) return 'Harus angka positif';
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            // FIX: Mengubah input menjadi CM
+            _buildTextField(
+              controller: _minLevelController,
+              label: 'Level Minimum (cm)', // Diubah
+              icon: Icons.trending_down,
+              isNumeric: true,
+              validator: (value) {
+                if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
+                final min = double.tryParse(value!);
+                final depth = double.tryParse(_depthController.text);
+                if (min == null || min < 0) return 'Tidak boleh negatif';
+                if (depth != null && min >= depth) return 'Harus < Kedalaman Total';
+                final max = double.tryParse(_maxLevelController.text);
+                if (max != null && min >= max) return 'Harus < Level Maksimum';
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            // FIX: Mengubah input menjadi CM
+            _buildTextField(
+              controller: _maxLevelController,
+              label: 'Level Maksimum (cm)', // Diubah
+              icon: Icons.trending_up,
+              isNumeric: true,
+              validator: (value) {
+                if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
+                final max = double.tryParse(value!);
+                final depth = double.tryParse(_depthController.text);
+                if (max == null || max <= 0) return 'Harus angka positif';
+                if (depth != null && max > depth) return 'Tidak boleh > Kedalaman Total';
                 return null;
               },
             ),
             const SizedBox(height: 16),
             _buildTextField(
               controller: _normalLevelController,
-              label: 'Level Normal (cm)',
+              label: 'Target Level Normal (cm)',
               icon: Icons.track_changes,
               isNumeric: true,
               validator: (value) {
-                if (value?.isEmpty ?? true)
-                  return 'Level normal tidak boleh kosong';
-                final normal = double.tryParse(value!);
-                if (normal == null || normal <= 0) {
-                  return 'Level normal harus berupa angka positif';
-                }
-                return null;
+                 if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
+                 if ((double.tryParse(value!) ?? 0) <= 0) return 'Harus angka positif';
+                 return null;
               },
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildTextField(
-                    controller: _maxLevelController,
-                    label: 'Level Max (%)',
-                    icon: Icons.trending_up,
-                    isNumeric: true,
-                    validator: (value) {
-                      if (value?.isEmpty ?? true)
-                        return 'Level max tidak boleh kosong';
-                      final max = double.tryParse(value!);
-                      if (max == null || max <= 0 || max > 100) {
-                        return 'Level max harus 1-100%';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildTextField(
-                    controller: _minLevelController,
-                    label: 'Level Min (%)',
-                    icon: Icons.trending_down,
-                    isNumeric: true,
-                    validator: (value) {
-                      if (value?.isEmpty ?? true)
-                        return 'Level min tidak boleh kosong';
-                      final min = double.tryParse(value!);
-                      if (min == null || min <= 0 || min > 100) {
-                        return 'Level min harus 1-100%';
-                      }
-                      final max = double.tryParse(_maxLevelController.text);
-                      if (max != null && min >= max) {
-                        return 'Level min harus < max';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ],
             ),
           ],
         ),
@@ -333,25 +286,10 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, size: 18, color: Colors.blue[600]),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.blue[400]!, width: 2),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
+        prefixIcon: Icon(icon, size: 20, color: Colors.blue[700]),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
       ),
     );
   }
@@ -363,17 +301,12 @@ class _AddPoolScreenState extends State<AddPoolScreen> {
       child: ElevatedButton.icon(
         onPressed: _savePool,
         icon: const Icon(Icons.save, size: 20),
-        label: const Text(
-          'Simpan Kolam/Wadah',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
+        label: const Text('Simpan Kolam/Wadah', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.green[600],
           foregroundColor: Colors.white,
           elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );

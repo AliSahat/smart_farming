@@ -1,6 +1,6 @@
 // lib/screens/dashboard_screen.dart
 // VERSI PERBAIKAN FINAL (LAGI) - SEMUA ERROR DIPERBAIKI
-// ignore_for_file: prefer_final_fields, unused_field, unused_element, unused_import
+// ignore_for_file: prefer_final_fields, unused_field, unused_element, unused_import, use_build_context_synchronously
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -105,8 +105,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           poolProvider.updateCurrentWaterLevel(
             distanceToWater: data.distanceToWater,
             onNotification: _notificationService.addNotificationFromItem,
-            isSafetyTimerEnabled:
-                settingsProvider.isSafetyTimerEnabled ?? false,
+            isSafetyTimerEnabled: settingsProvider.isSafetyTimerEnabled,
           );
         } else {
           Logger().e("❌ Sensor error: ${data.errorMessage}");
@@ -281,8 +280,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 20),
             ManualControlCard(
-              isAutoModeEnabled: settingsProvider.isAutoModeEnabled ?? false,
+              isAutoModeEnabled: settingsProvider.isAutoModeEnabled,
               poolName: currentPool.name,
+              onAutoModeChanged: (bool newAutoMode) {
+                settingsProvider.setAutoMode(newAutoMode);
+              },
             ),
           ],
         ),

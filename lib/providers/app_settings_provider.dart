@@ -5,11 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppSettingsProvider with ChangeNotifier {
   bool _isSafetyTimerEnabled = true; // Defaultnya aktif
   bool _isSchedulerEnabled = false;
-
-  var isAutoModeEnabled; // Defaultnya tidak aktif
+  bool _isAutoModeEnabled = false; // Ubah dari var ke bool
 
   bool get isSafetyTimerEnabled => _isSafetyTimerEnabled;
   bool get isSchedulerEnabled => _isSchedulerEnabled;
+  bool get isAutoModeEnabled => _isAutoModeEnabled; // Tambahkan getter
 
   AppSettingsProvider() {
     _loadSettings();
@@ -20,6 +20,8 @@ class AppSettingsProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _isSafetyTimerEnabled = prefs.getBool('safetyTimer') ?? true;
     _isSchedulerEnabled = prefs.getBool('scheduler') ?? false;
+    _isAutoModeEnabled =
+        prefs.getBool('autoMode') ?? false; // Tambahkan loading
     notifyListeners();
   }
 
@@ -36,6 +38,14 @@ class AppSettingsProvider with ChangeNotifier {
     _isSchedulerEnabled = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('scheduler', value);
+    notifyListeners();
+  }
+
+  // Tambahkan method ini
+  Future<void> setAutoMode(bool value) async {
+    _isAutoModeEnabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('autoMode', value);
     notifyListeners();
   }
 }
