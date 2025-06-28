@@ -51,6 +51,7 @@ void main() async {
         ChangeNotifierProvider<NotificationProvider>.value(
           value: notificationProvider,
         ),
+        Provider<NotificationService>.value(value: notificationService),
         ChangeNotifierProvider(
           create: (_) {
             Logger().d("👷 Creating AppSettingsProvider");

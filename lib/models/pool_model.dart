@@ -36,6 +36,18 @@ class Pool {
     return !isLevelTooLow && !isLevelTooHigh;
   }
 
+  // Menambahkan pengecekan apakah level air sudah mencapai level normal yang diinginkan
+  bool get hasReachedNormalLevel {
+    // Level air sudah mencapai atau melebihi level normal yang diinginkan
+    return currentDepth >= normalLevel;
+  }
+
+  // Menambahkan pengecekan apakah level air di bawah level normal yang diinginkan
+  bool get isBelowNormalLevel {
+    // Level air masih di bawah level normal meskipun sudah di atas minimum
+    return currentDepth >= minLevel && currentDepth < normalLevel;
+  }
+
   // Menghitung persentase level air saat ini untuk ditampilkan di UI
   double get currentLevelPercent {
     if (depth == 0) return 0; // Hindari pembagian dengan nol
@@ -46,7 +58,22 @@ class Pool {
   String get levelStatus {
     if (isLevelTooLow) return 'Rendah';
     if (isLevelTooHigh) return 'Berlebih';
+    if (hasReachedNormalLevel) return 'Normal';
+    if (isBelowNormalLevel) return 'Sedang Diisi';
     return 'Normal';
+  }
+
+  // Helper untuk mendapatkan deskripsi status level air yang lebih detail
+  String get waterLevelDescription {
+    if (isLevelTooLow) {
+      return 'Level air rendah (${currentDepth.toStringAsFixed(1)} cm), di bawah batas minimum (${minLevel.toStringAsFixed(1)} cm)';
+    } else if (isBelowNormalLevel) {
+      return 'Level air mencukupi (${currentDepth.toStringAsFixed(1)} cm) tapi belum mencapai target normal (${normalLevel.toStringAsFixed(1)} cm)';
+    } else if (isLevelTooHigh) {
+      return 'Level air berlebih (${currentDepth.toStringAsFixed(1)} cm), melebihi batas maksimum (${maxLevel.toStringAsFixed(1)} cm)';
+    } else {
+      return 'Level air normal (${currentDepth.toStringAsFixed(1)} cm), antara level normal dan maksimum';
+    }
   }
 
   // (Sisa kode seperti copyWith, toMap, dll. tetap sama)

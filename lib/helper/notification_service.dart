@@ -132,9 +132,10 @@ class NotificationService {
 
   // Wrapper function untuk kompatibilitas dengan PoolProvider
   void addNotificationFromItem(NotificationItem notification) {
-    _notificationProvider.addNotification(notification);
+    // Use the addPoolNotification method to ensure it's shown in system notification bar
+    addPoolNotification(notification);
     Logger().i(
-      "In-app notification added: ${notification.title} - ${notification.message}",
+      "Notification added both in-app and to system bar: ${notification.title} - ${notification.message}",
     );
   }
 
@@ -308,16 +309,30 @@ class NotificationService {
     String? poolName,
   }) {
     final levelCm = waterLevel.toStringAsFixed(1);
+    final message = 'Level air $status (${levelCm}cm)';
 
-    _notificationProvider.addNotification(
-      NotificationItem(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: 'Level Air',
-        message: 'Level air $status (${levelCm}cm) - ${poolName ?? 'Unknown'}',
-        type: type,
-        timestamp: DateTime.now(),
-        poolName: poolName,
-      ),
+    // Create the notification item
+    final notification = NotificationItem(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: 'Level Air',
+      message: '$message - ${poolName ?? 'Unknown'}',
+      type: type,
+      timestamp: DateTime.now(),
+      poolName: poolName,
+    );
+
+    // Add to in-app notifications
+    _notificationProvider.addNotification(notification);
+
+    // Show system notification
+    String title = 'Status Level Air';
+    String body = poolName != null ? '$message pada $poolName' : message;
+
+    _showNotification(
+      title,
+      body,
+      'system_notifications',
+      'System Notifications',
     );
   }
 
@@ -369,6 +384,46 @@ class NotificationService {
       'Test notifikasi valve telah dimulai',
       'info',
       poolName: poolName,
+    );
+  }
+
+  // Method to handle general notifications from the pool provider
+  void addPoolNotification(NotificationItem notification) {
+    // Add to in-app notifications first
+    _notificationProvider.addNotification(notification);
+
+    // Then show in system notification bar
+    String title = notification.title;
+    String body = notification.poolName != null
+        ? '${notification.message} pada ${notification.poolName}'
+        : notification.message;
+
+    // Determine channel based on notification type
+    String channelId = 'system_notifications';
+    String channelName = 'System Notifications';
+
+    if (notification.message.contains('Kran') ||
+        notification.message.contains('kran')) {
+      channelId = 'valve_notifications';
+      channelName = 'Valve Notifications';
+    } else if (notification.message.contains('Pompa') ||
+        notification.message.contains('pompa')) {
+      channelId = 'pump_notifications';
+      channelName = 'Pump Notifications';
+    }
+
+    _showNotification(title, body, channelId, channelName);
+  }
+
+  // Show a general information notification in the system notification bar
+  void showInfoNotification(String title, String message) {
+    Logger().i("Showing info notification: $title - $message");
+
+    _showNotification(
+      title,
+      message,
+      'system_notifications',
+      'System Notifications',
     );
   }
 

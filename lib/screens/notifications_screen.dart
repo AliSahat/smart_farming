@@ -7,6 +7,7 @@ import '../models/notification_model.dart';
 import '../providers/notification_provider.dart'; // Add this import
 import '../widgets/notifications/notification_item_widget.dart';
 import '../widgets/notifications/notification_filter_widget.dart';
+import '../helper/notification_service.dart'; // Import notification service
 
 class NotificationsScreen extends StatefulWidget {
   // Remove required parameters
@@ -250,6 +251,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void _markAllAsRead(NotificationProvider provider) {
     provider.markAllAsRead();
 
+    // Get notification service and show notification in system bar
+    final notificationService = Provider.of<NotificationService>(
+      context,
+      listen: false,
+    );
+
+    notificationService.showInfoNotification(
+      'Notifikasi Dibaca',
+      'Semua notifikasi telah ditandai sebagai sudah dibaca',
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Semua notifikasi ditandai sebagai sudah dibaca'),
@@ -268,6 +280,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // Remove the notification
     provider.removeNotification(notification.id);
 
+    // Get notification service and show notification in system bar
+    final notificationService = Provider.of<NotificationService>(
+      context,
+      listen: false,
+    );
+
+    notificationService.showInfoNotification(
+      'Notifikasi Dihapus',
+      'Notifikasi "${notification.message}" telah dihapus',
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Notifikasi dihapus'),
@@ -278,6 +301,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           onPressed: () {
             // Restore notification
             provider.addNotification(removedNotification);
+
+            // Notify that notification has been restored
+            notificationService.showInfoNotification(
+              'Notifikasi Dikembalikan',
+              'Notifikasi "${notification.message}" telah dikembalikan',
+            );
           },
         ),
       ),
@@ -300,6 +329,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           TextButton(
             onPressed: () {
               provider.clearAll();
+
+              // Get notification service and show notification in system bar
+              final notificationService = Provider.of<NotificationService>(
+                context,
+                listen: false,
+              );
+
+              notificationService.showInfoNotification(
+                'Notifikasi Dihapus',
+                'Semua notifikasi telah dihapus dari daftar',
+              );
+
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(

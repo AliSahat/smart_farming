@@ -31,6 +31,7 @@ class WaterMonitorWidget extends StatelessWidget {
   IconData _getStatusIcon() {
     if (pool.isLevelTooLow) return Icons.arrow_downward_rounded;
     if (pool.isLevelTooHigh) return Icons.arrow_upward_rounded;
+    if (!pool.hasReachedNormalLevel) return Icons.trending_up_rounded;
     return Icons.check_circle_outline;
   }
 
@@ -40,6 +41,9 @@ class WaterMonitorWidget extends StatelessWidget {
     }
     if (pool.isLevelTooHigh) {
       return 'Di atas batas maksimum (${pool.maxLevel.toStringAsFixed(1)}cm)';
+    }
+    if (!pool.hasReachedNormalLevel) {
+      return 'Di antara minimum dan normal, perlu diisi sampai (${pool.normalLevel.toStringAsFixed(1)}cm)';
     }
     return 'Kondisi air dalam batas aman';
   }

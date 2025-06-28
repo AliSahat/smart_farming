@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../../screens/service_layer/manual_control_service.dart';
 import '../../helper/notification_service.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/pool_provider.dart';
+import '../../models/notification_model.dart';
 
 class ManualControlCard extends StatefulWidget {
   final bool isAutoModeEnabled;
@@ -24,10 +26,9 @@ class ManualControlCard extends StatefulWidget {
 }
 
 class _ManualControlCardState extends State<ManualControlCard> {
-  late final ManualControlService _controlService;
   late bool _isManualMode;
 
-  // Manual control states - hapus pompa dan valve
+  // Status kontrol untuk mode manual
   bool _isFillModeActive = false;
   bool _isDrainModeActive = false;
 
@@ -36,16 +37,17 @@ class _ManualControlCardState extends State<ManualControlCard> {
     super.initState();
     _isManualMode = !widget.isAutoModeEnabled;
 
-    // Fix: Ambil NotificationProvider dari context
-    final notificationProvider = Provider.of<NotificationProvider>(
-      context,
-      listen: false,
-    );
-    _controlService = ManualControlService(
-      NotificationService(notificationProvider),
-    );
-
     Logger().i("🏁 Manual controls initialized for pool: ${widget.poolName}");
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Sinkronkan state kontrol dengan PoolProvider saat widget di-update
+    final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+    _isFillModeActive = poolProvider.valveStatus == ValveStatus.open;
+    _isDrainModeActive = poolProvider.drainStatus == DrainStatus.open;
   }
 
   void _toggleMode() {
@@ -57,6 +59,24 @@ class _ManualControlCardState extends State<ManualControlCard> {
         _isDrainModeActive = false;
       }
     });
+
+    // Get the pool provider to update its mode
+    final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+
+    // Get notification service for sending notifications
+    final notificationProvider = Provider.of<NotificationProvider>(
+      context,
+      listen: false,
+    );
+    final notificationService = NotificationService(notificationProvider);
+
+    // Update pool provider's manual mode state
+    poolProvider.setManualMode(
+      _isManualMode,
+      onNotification: (notification) {
+        notificationService.addNotificationFromItem(notification);
+      },
+    );
 
     // Callback ke parent
     if (widget.onAutoModeChanged != null) {
@@ -71,7 +91,7 @@ class _ManualControlCardState extends State<ManualControlCard> {
               ? '🔧 Mode Manual Diaktifkan'
               : '🤖 Mode Otomatis Diaktifkan',
         ),
-        backgroundColor: _isManualMode ? Colors.blue : Colors.green,
+        backgroundColor: _isManualMode ? Colors.orange : Colors.green,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -300,24 +320,56 @@ class _ManualControlCardState extends State<ManualControlCard> {
     );
   }
 
-  // Event handlers - hapus pump dan valve handlers
+  // Event handler untuk mode pengisian (kontrol valve/keran utama)
   Future<void> _toggleFillMode() async {
-    final result = _isFillModeActive
-        ? await _controlService.deactivateFillMode(widget.poolName)
-        : await _controlService.activateFillMode(widget.poolName);
+    // Akses poolProvider dan notificationService
+    final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+    final notificationProvider = Provider.of<NotificationProvider>(
+      context,
+      listen: false,
+    );
+    final notificationService = NotificationService(notificationProvider);
 
-    setState(() {
-      _isFillModeActive = result['isFillModeActive']!;
-      _isDrainModeActive = result['isDrainModeActive']!;
-    });
+    // Perbarui status valve/keran berdasarkan state saat ini
+    if (_isFillModeActive) {
+      // Jika aktif, nonaktifkan (tutup keran)
+      poolProvider.manualSetValve(
+        ValveStatus.closed,
+        onNotification: (notification) {
+          notificationService.addNotificationFromItem(notification);
+        },
+      );
+    } else {
+      // Jika tidak aktif, aktifkan (buka keran)
+      poolProvider.manualSetValve(
+        ValveStatus.open,
+        onNotification: (notification) {
+          notificationService.addNotificationFromItem(notification);
+        },
+      );
+
+      // Pastikan pembuangan ditutup saat pengisian diaktifkan
+      if (_isDrainModeActive) {
+        poolProvider.manualSetDrain(
+          DrainStatus.closed,
+          onNotification: (notification) {
+            notificationService.addNotificationFromItem(notification);
+          },
+        );
+        setState(() => _isDrainModeActive = false);
+      }
+    }
+
+    // Perbarui state lokal
+    setState(() => _isFillModeActive = !_isFillModeActive);
 
     // Show feedback
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           _isFillModeActive
-              ? '💧 Mode Pengisian Diaktifkan'
-              : '💧 Mode Pengisian Dinonaktifkan',
+              ? '💧 Keran Utama Dibuka - Mode Pengisian Aktif'
+              : '💧 Keran Utama Ditutup - Mode Pengisian Nonaktif',
         ),
         backgroundColor: _isFillModeActive ? Colors.lightBlue : Colors.grey,
         duration: const Duration(seconds: 1),
@@ -325,23 +377,56 @@ class _ManualControlCardState extends State<ManualControlCard> {
     );
   }
 
+  // Event handler untuk mode pembuangan (kontrol drain/pembuangan)
   Future<void> _toggleDrainMode() async {
-    final result = _isDrainModeActive
-        ? await _controlService.deactivateDrainMode(widget.poolName)
-        : await _controlService.activateDrainMode(widget.poolName);
+    // Akses poolProvider dan notificationService
+    final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+    final notificationProvider = Provider.of<NotificationProvider>(
+      context,
+      listen: false,
+    );
+    final notificationService = NotificationService(notificationProvider);
 
-    setState(() {
-      _isFillModeActive = result['isFillModeActive']!;
-      _isDrainModeActive = result['isDrainModeActive']!;
-    });
+    // Perbarui status drain/pembuangan berdasarkan state saat ini
+    if (_isDrainModeActive) {
+      // Jika aktif, nonaktifkan (tutup pembuangan)
+      poolProvider.manualSetDrain(
+        DrainStatus.closed,
+        onNotification: (notification) {
+          notificationService.addNotificationFromItem(notification);
+        },
+      );
+    } else {
+      // Jika tidak aktif, aktifkan (buka pembuangan)
+      poolProvider.manualSetDrain(
+        DrainStatus.open,
+        onNotification: (notification) {
+          notificationService.addNotificationFromItem(notification);
+        },
+      );
+
+      // Pastikan keran pengisian ditutup saat pembuangan diaktifkan
+      if (_isFillModeActive) {
+        poolProvider.manualSetValve(
+          ValveStatus.closed,
+          onNotification: (notification) {
+            notificationService.addNotificationFromItem(notification);
+          },
+        );
+        setState(() => _isFillModeActive = false);
+      }
+    }
+
+    // Perbarui state lokal
+    setState(() => _isDrainModeActive = !_isDrainModeActive);
 
     // Show feedback
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           _isDrainModeActive
-              ? '🚿 Mode Pembuangan Diaktifkan'
-              : '🚿 Mode Pembuangan Dinonaktifkan',
+              ? '🚿 Pembuangan Dibuka - Mode Pembuangan Aktif'
+              : '🚿 Pembuangan Ditutup - Mode Pembuangan Nonaktif',
         ),
         backgroundColor: _isDrainModeActive ? Colors.orange : Colors.grey,
         duration: const Duration(seconds: 1),

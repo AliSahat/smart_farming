@@ -254,6 +254,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               valveStatus: poolProvider.valveStatus,
               drainStatus: poolProvider.drainStatus,
               normalLevel: currentPool.normalLevel,
+              waterLevelStatus: poolProvider.getWaterLevelStatusDescription(),
+              isManualMode: poolProvider.isManualMode,
             ),
             const SizedBox(height: 20),
             if (_showSettings) ...[
