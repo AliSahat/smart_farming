@@ -16,7 +16,7 @@ class HeaderWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -33,18 +33,19 @@ class HeaderWidget extends StatelessWidget {
         children: [
           // Icon dan Title - lebih compact
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.green.shade50,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              Icons.agriculture,
-              size: 20,
+              Icons
+                  .water, // Pilihan lain: Icons.water, Icons.eco, Icons.nature, Icons.spa, Icons.grass
+              size: 24,
               color: Colors.green.shade600,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
 
           // Title - lebih simple
           Expanded(
@@ -54,14 +55,14 @@ class HeaderWidget extends StatelessWidget {
                 const Text(
                   'Smart Farming',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF1F2937),
                   ),
                 ),
                 Text(
                   'Monitoring Air Otomatis',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                 ),
               ],
             ),
@@ -69,19 +70,18 @@ class HeaderWidget extends StatelessWidget {
 
           // Status indicator - minimal
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: connectionStatus
-                  ? Colors.green.shade50
-                  : Colors.red.shade50,
+              color:
+                  connectionStatus ? Colors.green.shade50 : Colors.red.shade50,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 6,
-                  height: 6,
+                  width: 8,
+                  height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: connectionStatus
@@ -89,11 +89,11 @@ class HeaderWidget extends StatelessWidget {
                         : Colors.red.shade600,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Text(
                   connectionStatus ? 'Online' : 'Offline',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: connectionStatus
                         ? Colors.green.shade700
@@ -104,12 +104,12 @@ class HeaderWidget extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
 
           // Settings button - minimal
           Container(
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
               borderRadius: BorderRadius.circular(8),
@@ -117,7 +117,7 @@ class HeaderWidget extends StatelessWidget {
             child: IconButton(
               icon: Icon(
                 Icons.more_vert,
-                size: 16,
+                size: 18,
                 color: Colors.grey.shade600,
               ),
               onPressed: () {

@@ -1,4 +1,6 @@
 // lib/screens/splash_screen.dart
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
@@ -104,7 +106,8 @@ class _SplashScreenState extends State<SplashScreen>
                         ],
                       ),
                       child: const Icon(
-                        Icons.agriculture,
+                        Icons
+                            .water, // Atau ganti dengan: Icons.water, Icons.eco, Icons.nature, Icons.grass
                         size: 60,
                         color: Colors.green,
                       ),
