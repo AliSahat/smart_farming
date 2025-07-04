@@ -3,6 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:logger/logger.dart';
+import '../providers/pool_provider.dart';
+import '../providers/app_settings_provider.dart';
+import '../models/pool_model.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -31,10 +36,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
     text: 'SF001',
   );
 
+  // Pool editing controllers
+  final TextEditingController _poolNameController = TextEditingController();
+  final TextEditingController _poolDepthController = TextEditingController();
+  final TextEditingController _poolNormalLevelController = TextEditingController();
+  final TextEditingController _poolMaxLevelController = TextEditingController();
+  final TextEditingController _poolMinLevelController = TextEditingController();
+
+  String? _selectedPoolKey;
+  final _poolFormKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCurrentPoolData();
+    });
+  }
+
+  void _loadSettings() {
+    Logger().i("🔧 Loading settings screen");
+    // Load from providers if available
+    final appSettings = Provider.of<AppSettingsProvider>(context, listen: false);
+    setState(() {
+      _autoMode = appSettings.isAutoModeEnabled ?? true;
+      _isSafetyTimerEnabled = appSettings.isSafetyTimerEnabled ?? false;
+    });
+  }
+
+  void _loadCurrentPoolData() {
+    final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+    if (poolProvider.currentPool != null && poolProvider.selectedPoolKey.isNotEmpty) {
+      final currentPool = poolProvider.currentPool!;
+      setState(() {
+        _selectedPoolKey = poolProvider.selectedPoolKey;
+        _poolNameController.text = currentPool.name;
+        _poolDepthController.text = currentPool.depth.toStringAsFixed(0);
+        _poolNormalLevelController.text = currentPool.normalLevel.toStringAsFixed(0);
+        _poolMaxLevelController.text = currentPool.maxLevel.toStringAsFixed(0);
+        _poolMinLevelController.text = currentPool.minLevel.toStringAsFixed(0);
+      });
+      Logger().i("📊 Loaded current pool data: ${currentPool.name}");
+    }
+  }
+
   @override
   void dispose() {
     _serverUrlController.dispose();
     _deviceIdController.dispose();
+    _poolNameController.dispose();
+    _poolDepthController.dispose();
+    _poolNormalLevelController.dispose();
+    _poolMaxLevelController.dispose();
+    _poolMinLevelController.dispose();
     super.dispose();
   }
 
@@ -61,6 +116,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // Pool Settings Section
+            _buildPoolSettingsSection(),
+            const SizedBox(height: 16),
+
             // Advanced Features & Time Settings
             _buildSettingsSection(
               title: 'Fitur Lanjutan & Waktu',
@@ -68,8 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _buildSwitchTile(
                   title: 'Timer Pengaman',
-                  subtitle:
-                      'Hentikan aksi jika kran/pompa terlalu lama menyala',
+                  subtitle: 'Hentikan aksi jika kran/pompa terlalu lama menyala',
                   value: _isSafetyTimerEnabled,
                   onChanged: (value) {
                     setState(() {
@@ -81,8 +139,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(height: 24),
                 _buildSwitchTile(
                   title: 'Jadwal Ganti Air',
-                  subtitle:
-                      'Aktifkan penggantian air terjadwal (Contoh: Minggu, 07:00)',
+                  subtitle: 'Aktifkan penggantian air terjadwal (Contoh: Minggu, 07:00)',
                   value: _isSchedulerEnabled,
                   onChanged: (value) {
                     setState(() {
@@ -273,6 +330,247 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  // NEW: Pool Settings Section
+  Widget _buildPoolSettingsSection() {
+    return Consumer<PoolProvider>(
+      builder: (context, poolProvider, child) {
+        return _buildSettingsSection(
+          title: 'Pengaturan Kolam/Wadah',
+          icon: Icons.pool,
+          children: [
+            // Pool selector dropdown
+            if (poolProvider.pools.isNotEmpty) ...[
+              DropdownButtonFormField<String>(
+                value: _selectedPoolKey,
+                decoration: InputDecoration(
+                  labelText: 'Pilih Kolam untuk Diedit',
+                  prefixIcon: Icon(Icons.pool, color: Colors.blue[600]),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                items: poolProvider.pools.entries.map((entry) {
+                  return DropdownMenuItem<String>(
+                    value: entry.key,
+                    child: Text(entry.value.name),
+                  );
+                }).toList(),
+                onChanged: (String? newKey) {
+                  if (newKey != null) {
+                    _loadPoolDataForEditing(newKey, poolProvider.pools[newKey]!);
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Pool editing form
+            if (_selectedPoolKey != null) ...[
+              Form(
+                key: _poolFormKey,
+                child: Column(
+                  children: [
+                    _buildPoolTextField(
+                      controller: _poolNameController,
+                      label: 'Nama Kolam/Wadah',
+                      icon: Icons.label,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPoolTextField(
+                      controller: _poolDepthController,
+                      label: 'Kedalaman Total (cm)',
+                      icon: Icons.straighten,
+                      isNumeric: true,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPoolTextField(
+                      controller: _poolMinLevelController,
+                      label: 'Level Minimum (cm)',
+                      icon: Icons.trending_down,
+                      isNumeric: true,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPoolTextField(
+                      controller: _poolMaxLevelController,
+                      label: 'Level Maksimum (cm)',
+                      icon: Icons.trending_up,
+                      isNumeric: true,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPoolTextField(
+                      controller: _poolNormalLevelController,
+                      label: 'Target Level Normal (cm)',
+                      icon: Icons.track_changes,
+                      isNumeric: true,
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.grey[600], size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      poolProvider.pools.isEmpty
+                          ? 'Belum ada kolam yang tersedia.\nTambah kolam dari Dashboard terlebih dahulu.'
+                          : 'Pilih kolam dari dropdown di atas untuk mengedit pengaturan.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPoolTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isNumeric = false,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
+      inputFormatters: isNumeric
+          ? [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))]
+          : null,
+      validator: isNumeric
+          ? (value) {
+              if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
+              final num = double.tryParse(value!);
+              if (num == null || num <= 0) return 'Harus angka positif';
+              return null;
+            }
+          : (value) {
+              if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
+              return null;
+            },
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: Colors.blue[600]),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.blue[400]!, width: 2),
+        ),
+      ),
+    );
+  }
+
+  void _loadPoolDataForEditing(String poolKey, Pool pool) {
+    setState(() {
+      _selectedPoolKey = poolKey;
+      _poolNameController.text = pool.name;
+      _poolDepthController.text = pool.depth.toStringAsFixed(0);
+      _poolNormalLevelController.text = pool.normalLevel.toStringAsFixed(0);
+      _poolMaxLevelController.text = pool.maxLevel.toStringAsFixed(0);
+      _poolMinLevelController.text = pool.minLevel.toStringAsFixed(0);
+    });
+    Logger().i("📝 Loaded pool data for editing: ${pool.name}");
+  }
+
+  // Enhanced save settings method
+  void _saveSettings() async {
+    Logger().i("💾 Starting to save all settings");
+    
+    try {
+      // Save app settings
+      final appSettings = Provider.of<AppSettingsProvider>(context, listen: false);
+      await appSettings.setAutoMode(_autoMode);
+      await appSettings.setSafetyTimerEnabled(_isSafetyTimerEnabled);
+      Logger().i("✅ App settings saved");
+
+      // Save pool settings if pool is selected and form is valid
+      if (_selectedPoolKey != null && _poolFormKey.currentState!.validate()) {
+        await _savePoolSettings();
+      }
+
+      // Save other preferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('notifications_enabled', _notifications);
+      await prefs.setBool('sound_alerts_enabled', _soundAlerts);
+      await prefs.setBool('dark_mode_enabled', _darkMode);
+      await prefs.setDouble('update_interval', _updateInterval);
+      await prefs.setString('app_language', _language);
+      await prefs.setString('server_url', _serverUrlController.text);
+      await prefs.setString('device_id', _deviceIdController.text);
+      Logger().i("✅ Preferences saved");
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                const Expanded(child: Text('Semua pengaturan berhasil disimpan')),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      
+      Logger().i("🎉 All settings saved successfully");
+    } catch (e) {
+      Logger().e("❌ Error saving settings", error: e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error menyimpan pengaturan: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _savePoolSettings() async {
+    if (_selectedPoolKey == null) return;
+
+    final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+    final currentPool = poolProvider.pools[_selectedPoolKey!];
+    if (currentPool == null) return;
+
+    try {
+      final newPool = Pool(
+        name: _poolNameController.text.trim(),
+        depth: double.parse(_poolDepthController.text),
+        normalLevel: double.parse(_poolNormalLevelController.text),
+        maxLevel: double.parse(_poolMaxLevelController.text),
+        minLevel: double.parse(_poolMinLevelController.text),
+        currentDepth: currentPool.currentDepth, // Keep current water level
+      );
+
+      final success = await poolProvider.updatePool(_selectedPoolKey!, newPool);
+      
+      if (success) {
+        Logger().i("✅ Pool settings updated: ${newPool.name}");
+      } else {
+        Logger().w("⚠️ Pool update returned false");
+      }
+    } catch (e) {
+      Logger().e("❌ Error updating pool settings", error: e);
+      rethrow;
+    }
   }
 
   Widget _buildSettingsSection({
@@ -525,18 +823,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _saveSettings() {
-    // Implement save logic
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pengaturan disimpan'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
   void _testConnection() {
-    // Implement connection test
+    Logger().i("🔍 Testing connection to server");
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -554,6 +842,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Simulate network test
     Future.delayed(const Duration(seconds: 2), () {
       Navigator.pop(context);
+      Logger().i("✅ Connection test completed");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Koneksi berhasil!'),
@@ -582,6 +871,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _resetSettings() {
+    Logger().i("🔄 Resetting all settings to default");
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -609,6 +899,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _deviceIdController.text = 'SF001';
               });
               Navigator.pop(context);
+              Logger().i("✅ Settings reset to default");
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Pengaturan direset ke default'),
@@ -624,6 +915,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _clearAllData() {
+    Logger().w("⚠️ Clear all data requested");
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -639,6 +931,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
+              Logger().i("ℹ️ Clear data feature not yet implemented");
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Fitur hapus data akan segera tersedia'),
@@ -654,6 +947,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _resetOnBoarding() async {
+    Logger().i("🔄 Resetting onboarding status");
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_completed', false);
 

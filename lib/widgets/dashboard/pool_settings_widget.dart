@@ -1,21 +1,25 @@
 // lib/widgets/dashboard/pool_settings_widget.dart
-// VERSI PERBAIKAN FINAL - Input dalam CM
-// ignore_for_file: deprecated_member_use, sized_box_for_whitespace
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:logger/logger.dart';
+import 'package:provider/provider.dart';
 import '../../models/pool_model.dart';
+import '../../providers/pool_provider.dart';
 
 class PoolSettingsWidget extends StatefulWidget {
   final Pool pool;
   final Function(Pool) onSettingsChanged;
+  final Function(String)? onPoolDeleted;
   final double waterLevelPercent;
+  final String? poolKey; // Make this optional with default handling
 
   const PoolSettingsWidget({
     super.key,
     required this.pool,
     required this.onSettingsChanged,
     required this.waterLevelPercent,
+    this.poolKey, // Optional parameter
+    this.onPoolDeleted,
   });
 
   @override
@@ -34,6 +38,7 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
   void initState() {
     super.initState();
     _initializeControllers();
+    Logger().i("🏁 Pool settings widget initialized for: ${widget.pool.name}");
   }
 
   void _initializeControllers() {
@@ -73,6 +78,8 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
   void _saveSettings() {
     if (!_formKey.currentState!.validate()) return;
 
+    Logger().i("💾 Saving pool settings for: ${widget.pool.name}");
+
     final name = _nameController.text.trim();
     final depth = double.parse(_depthController.text);
     final normalLevel = double.parse(_normalLevelController.text);
@@ -110,6 +117,221 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
         ),
       );
     }
+
+    Logger().i("✅ Pool settings saved successfully for: ${newPool.name}");
+  }
+
+  Future<void> _deletePool() async {
+    // Check if we have the required data for deletion
+    if (widget.poolKey == null) {
+      Logger().e("❌ Cannot delete pool: poolKey is null");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Error: Tidak dapat menghapus kolam (poolKey tidak tersedia)'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    Logger().w("⚠️ Delete pool requested for: ${widget.pool.name}");
+
+    // Show confirmation dialog
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.red[600], size: 24),
+              const SizedBox(width: 8),
+              const Text(
+                'Hapus Kolam',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Apakah Anda yakin ingin menghapus kolam "${widget.pool.name}"?',
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            color: Colors.red[600], size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          'PERINGATAN:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.red[700],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '• Semua data historis akan terhapus\n'
+                      '• Pengaturan kolam akan hilang\n'
+                      '• Tindakan ini tidak dapat dibatalkan',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.red[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false);
+                Logger().d("❌ Pool deletion cancelled by user");
+              },
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+                Logger().w("✅ Pool deletion confirmed by user");
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[600],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user confirmed deletion
+    if (shouldDelete == true && mounted) {
+      await _performDeletion();
+    }
+  }
+
+  Future<void> _performDeletion() async {
+    Logger().i("🗑️ Starting pool deletion process for: ${widget.pool.name}");
+
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 16),
+              Text('Menghapus ${widget.pool.name}...'),
+            ],
+          ),
+        ),
+      );
+
+      final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+
+      // Delete from database
+      final success = await poolProvider.deletePool(widget.poolKey!);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      if (success) {
+        Logger().i("✅ Pool deleted successfully: ${widget.pool.name}");
+
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Kolam "${widget.pool.name}" berhasil dihapus'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+        }
+
+        // Call the callback if provided
+        if (widget.onPoolDeleted != null) {
+          widget.onPoolDeleted!(widget.poolKey!);
+        }
+      } else {
+        Logger().e("❌ Failed to delete pool: ${widget.pool.name}");
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('Gagal menghapus kolam. Silakan coba lagi.'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      Logger().e("💥 Exception during pool deletion", error: e);
+
+      // Close loading dialog if still open
+      if (mounted) Navigator.of(context).pop();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error menghapus kolam: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -140,7 +362,7 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
                 const SizedBox(height: 20),
                 _buildFormFields(),
                 const SizedBox(height: 20),
-                _buildSaveButton(),
+                _buildActionButtons(),
               ],
             ),
           ),
@@ -192,6 +414,11 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
           controller: _nameController,
           label: 'Nama Kolam/Wadah',
           icon: Icons.label_important_outline,
+          validator: (value) {
+            if (value?.isEmpty ?? true) return 'Nama tidak boleh kosong';
+            if (value!.length < 2) return 'Nama minimal 2 karakter';
+            return null;
+          },
         ),
         const SizedBox(height: 16),
         _buildTextField(
@@ -203,13 +430,14 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
             if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
             final depth = double.tryParse(value!);
             if (depth == null || depth <= 0) return 'Harus angka positif';
+            if (depth > 1000) return 'Kedalaman terlalu besar (max 1000cm)';
             return null;
           },
         ),
         const SizedBox(height: 16),
         _buildTextField(
           controller: _minLevelController,
-          label: 'Level Minimum (cm)', // Diubah dari % ke cm
+          label: 'Level Minimum (cm)',
           icon: Icons.trending_down,
           isNumeric: true,
           validator: (value) {
@@ -226,7 +454,7 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
         const SizedBox(height: 16),
         _buildTextField(
           controller: _maxLevelController,
-          label: 'Level Maksimum (cm)', // Diubah dari % ke cm
+          label: 'Level Maksimum (cm)',
           icon: Icons.trending_up,
           isNumeric: true,
           validator: (value) {
@@ -236,6 +464,8 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
             if (max == null || max <= 0) return 'Harus angka positif';
             if (depth != null && max > depth)
               return 'Tidak boleh > Kedalaman Total';
+            final min = double.tryParse(_minLevelController.text);
+            if (min != null && max <= min) return 'Harus > Level Minimum';
             return null;
           },
         ),
@@ -249,6 +479,10 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
             if (value?.isEmpty ?? true) return 'Tidak boleh kosong';
             final normal = double.tryParse(value!);
             if (normal == null || normal <= 0) return 'Harus angka positif';
+            final min = double.tryParse(_minLevelController.text);
+            final max = double.tryParse(_maxLevelController.text);
+            if (min != null && normal < min) return 'Harus >= Level Minimum';
+            if (max != null && normal > max) return 'Harus <= Level Maksimum';
             return null;
           },
         ),
@@ -299,26 +533,60 @@ class _PoolSettingsWidgetState extends State<PoolSettingsWidget> {
     );
   }
 
-  Widget _buildSaveButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton.icon(
-        onPressed: _saveSettings,
-        icon: const Icon(Icons.save, size: 18),
-        label: const Text(
-          'Simpan Pengaturan',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.orange[600],
-          foregroundColor: Colors.white,
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+  Widget _buildActionButtons() {
+    return Column(
+      children: [
+        // Save button
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton.icon(
+            onPressed: _saveSettings,
+            icon: const Icon(Icons.save, size: 18),
+            label: const Text(
+              'Simpan Pengaturan',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange[600],
+              foregroundColor: Colors.white,
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ),
-      ),
+
+        const SizedBox(height: 12),
+
+        // Delete button - only show if poolKey is available
+        if (widget.poolKey != null) ...[
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: _deletePool,
+              icon:
+                  Icon(Icons.delete_forever, size: 18, color: Colors.red[600]),
+              label: Text(
+                'Hapus Kolam',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.red[600],
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.red[400]!, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

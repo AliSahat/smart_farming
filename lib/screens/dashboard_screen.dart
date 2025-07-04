@@ -163,11 +163,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _navigateToAddPool() => Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => AddPoolScreen(onPoolAdded: _onPoolAdded),
-    ),
-  );
+        context,
+        MaterialPageRoute(
+          builder: (context) => AddPoolScreen(onPoolAdded: _onPoolAdded),
+        ),
+      );
   void _testNotifications() async {
     // First check permission status
     final status = await Permission.notification.status;
@@ -261,7 +261,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (_showSettings) ...[
               PoolSettingsWidget(
                 pool: currentPool,
+                poolKey: poolProvider.selectedPoolKey, // Add this line
                 onSettingsChanged: _onPoolSettingsChanged,
+                onPoolDeleted: _onPoolDeleted, // Add this callback
                 waterLevelPercent: waterLevelPercent,
               ),
               const SizedBox(height: 20),
@@ -291,6 +293,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // Add this method to handle pool deletion
+  void _onPoolDeleted(String deletedPoolKey) {
+    Logger().i("🗑️ Pool deleted callback received for key: $deletedPoolKey");
+
+    final poolProvider = Provider.of<PoolProvider>(context, listen: false);
+
+    // If the deleted pool was the currently selected one,
+    // we need to select another pool or hide settings
+    if (poolProvider.selectedPoolKey == deletedPoolKey) {
+      setState(() {
+        _showSettings = false; // Hide settings when current pool is deleted
+      });
+
+      // Select the first available pool if any exists
+      if (poolProvider.pools.isNotEmpty) {
+        final firstPoolKey = poolProvider.pools.keys.first;
+        _onPoolSelected(firstPoolKey);
+        Logger().i("📌 Auto-selected first available pool: $firstPoolKey");
+      }
+    }
+
+    // Show success notification
+    _notificationService.addSystemNotification(
+      'Kolam berhasil dihapus',
+      'info',
     );
   }
 }
