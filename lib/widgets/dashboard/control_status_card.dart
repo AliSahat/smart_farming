@@ -1,6 +1,6 @@
 // lib/widgets/dashboard/control_status_card.dart
 // VERSI PERBAIKAN FINAL - FIX TYPE ERROR
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, prefer_const_constructors
 
 import 'package:flutter/material.dart';
 import '../../models/notification_model.dart'; // Import ini penting
